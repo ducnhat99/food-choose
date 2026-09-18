@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
 import { BackgroundDecoration } from './BackgroundDecoration'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { supabase } from '../lib/supabaseClient'
 
 export function Layout() {
@@ -10,15 +11,7 @@ export function Layout() {
   const { language, setLanguage, t } = useLanguage()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // Prevent the page behind the drawer from scrolling while it's open.
-  useEffect(() => {
-    if (!menuOpen) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [menuOpen])
+  useBodyScrollLock(menuOpen)
 
   function closeMenu() {
     setMenuOpen(false)

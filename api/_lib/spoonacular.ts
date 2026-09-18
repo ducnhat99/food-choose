@@ -2,6 +2,52 @@ import type { RecipeDetail, RecipeSummary } from './mealdb.js'
 
 const SPOONACULAR_API_KEY = process.env.SPOONACULAR_API_KEY
 
+// Spoonacular's own supported cuisine vocabulary (verified live against
+// spoonacular.com/food-api/docs). An unrecognized cuisine value doesn't
+// error -- it returns HTTP 200 with an empty result set, indistinguishable
+// from a real "no matches" response. Since spoonacularSearch/spoonacularRandom
+// return null (not []) to signal "try the other provider," an unvalidated
+// cuisine like "Jamaican" or "Polish" (real TheMealDB countries, not in this
+// list) would silently short-circuit the mealdb fallback with a bogus empty
+// result instead of ever reaching the provider that actually has those
+// recipes. Checking against this list up front lets those cases fall
+// through to mealdb correctly instead.
+const SPOONACULAR_CUISINES = new Set(
+  [
+    'African',
+    'Asian',
+    'American',
+    'British',
+    'Cajun',
+    'Caribbean',
+    'Chinese',
+    'Eastern European',
+    'European',
+    'French',
+    'German',
+    'Greek',
+    'Indian',
+    'Irish',
+    'Italian',
+    'Japanese',
+    'Jewish',
+    'Korean',
+    'Latin American',
+    'Mediterranean',
+    'Mexican',
+    'Middle Eastern',
+    'Nordic',
+    'Southern',
+    'Spanish',
+    'Thai',
+    'Vietnamese',
+  ].map((c) => c.toLowerCase()),
+)
+
+function isKnownSpoonacularCuisine(cuisine: string): boolean {
+  return SPOONACULAR_CUISINES.has(cuisine.toLowerCase())
+}
+
 interface SpoonacularSearchResult {
   id: number
   title: string
@@ -61,8 +107,15 @@ function mapRecipeInformation(data: SpoonacularRecipeInformation): RecipeDetail 
     id: data.id,
     title: data.title,
     image: data.image,
-    category: data.dishTypes?.[0] ?? '',
-    area: data.cuisines?.[0] ?? '',
+    // Unlike TheMealDB (where every recipe has both fields), Spoonacular's
+    // cuisines/dishTypes are optional tags a recipe can simply lack --
+    // confirmed live (e.g. recipe 642551 has cuisines: []) that this isn't
+    // rare. A plain '' badge looks like a display bug, so fall back to a
+    // generic English label here (rather than in the frontend) so it goes
+    // through the same title/instructions translation pipeline in
+    // finalize.ts and renders correctly in Vietnamese too.
+    category: data.dishTypes?.[0] ?? 'Uncategorized',
+    area: data.cuisines?.[0] ?? 'International',
     instructions: htmlToPlainText(data.instructions ?? ''),
     ingredients: data.extendedIngredients.map((ing) => ({
       id: ing.id,
@@ -91,6 +144,7 @@ export async function spoonacularSearch(input: {
   if (!input.query && !input.cuisine && !input.diet && !input.type && !input.includeIngredients) {
     return null
   }
+  if (input.cuisine && !isKnownSpoonacularCuisine(input.cuisine)) return null
 
   try {
     const url = new URL('https://api.spoonacular.com/recipes/complexSearch')
@@ -153,6 +207,10 @@ export async function spoonacularRecipe(id: number): Promise<RecipeDetail | null
  */
 export async function spoonacularRandom(cuisine?: string): Promise<RecipeDetail | null> {
   if (!SPOONACULAR_API_KEY || isOnCooldown()) return null
+  // Not strictly required for correctness here (an empty recipes[] already
+  // collapses to null below, so the mealdb fallback still fires) -- but
+  // skips a wasted, always-empty request against a limited daily quota.
+  if (cuisine && !isKnownSpoonacularCuisine(cuisine)) return null
 
   try {
     const url = new URL('https://api.spoonacular.com/recipes/random')

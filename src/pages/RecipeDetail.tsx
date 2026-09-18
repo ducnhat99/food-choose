@@ -70,7 +70,7 @@ export function RecipeDetail() {
         stockFrom={1}
       />
       <div className="flex flex-wrap gap-2">
-        <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-medium text-teal-800">
+        <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-medium capitalize text-teal-800">
           {recipe.category}
         </span>
         <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">

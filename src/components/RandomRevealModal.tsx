@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import type { RecipeDetail } from '../lib/api'
 
 interface RandomRevealModalProps {
@@ -19,6 +20,8 @@ const STEP_DELAY_MS = 550
 export function RandomRevealModal({ loading, recipe, onViewRecipe, onClose }: RandomRevealModalProps) {
   const { t } = useLanguage()
   const [step, setStep] = useState(0)
+
+  useBodyScrollLock(true)
 
   useEffect(() => {
     if (loading || !recipe) {
@@ -57,7 +60,7 @@ export function RandomRevealModal({ loading, recipe, onViewRecipe, onClose }: Ra
           <>
             <div className="flex gap-2">
               <span
-                className={`rounded-full bg-teal-100 px-3 py-1 text-xs font-medium text-teal-800 transition-all duration-500 ${
+                className={`rounded-full bg-teal-100 px-3 py-1 text-xs font-medium capitalize text-teal-800 transition-all duration-500 ${
                   revealed(1) ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
                 }`}
               >

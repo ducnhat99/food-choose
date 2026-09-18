@@ -1,7 +1,7 @@
 // TheMealDB's list.php?a=list returns every UN country, but only these
 // actually have recipes attached (verified live against the API) -- using
 // the full country list would make most dropdown options return nothing.
-export const CUISINES = [
+const MEALDB_CUISINES = [
   'British',
   'Spanish',
   'Turkish',
@@ -32,6 +32,37 @@ export const CUISINES = [
   'Mexican',
   'Kenyan',
 ] as const
+
+// Spoonacular's own supported cuisine vocabulary (verified live against
+// spoonacular.com/food-api/docs), minus the ones already covered above by
+// name (British/Chinese/Greek/Irish/Italian/Japanese/Mexican/Spanish/Thai/
+// Vietnamese exist in both). Spoonacular's list skews regional/style rather
+// than per-country, which is complementary to TheMealDB's country list
+// rather than redundant with it -- see api/_lib/spoonacular.ts's
+// SPOONACULAR_CUISINES for why an unrecognized value here must never be sent
+// to Spoonacular (it returns an empty result instead of an error, which
+// would otherwise silently break the mealdb fallback for these).
+const SPOONACULAR_ONLY_CUISINES = [
+  'African',
+  'American',
+  'Asian',
+  'Cajun',
+  'Caribbean',
+  'Eastern European',
+  'European',
+  'French',
+  'German',
+  'Indian',
+  'Jewish',
+  'Korean',
+  'Latin American',
+  'Mediterranean',
+  'Middle Eastern',
+  'Nordic',
+  'Southern',
+] as const
+
+export const CUISINES = [...MEALDB_CUISINES, ...SPOONACULAR_ONLY_CUISINES] as const
 
 // TheMealDB's real, fixed category list (list.php?c=list). Doubles as the
 // closest available filter axis to a "meal type" or "diet" (Vegan/
@@ -85,6 +116,23 @@ export const CUISINE_LABELS_VI: Record<(typeof CUISINES)[number], string> = {
   Moroccan: 'Morocco',
   Mexican: 'Mexico',
   Kenyan: 'Kenya',
+  African: 'Châu Phi',
+  American: 'Mỹ',
+  Asian: 'Châu Á',
+  Cajun: 'Cajun',
+  Caribbean: 'Caribe',
+  'Eastern European': 'Đông Âu',
+  European: 'Châu Âu',
+  French: 'Pháp',
+  German: 'Đức',
+  Indian: 'Ấn Độ',
+  Jewish: 'Do Thái',
+  Korean: 'Hàn Quốc',
+  'Latin American': 'Mỹ Latinh',
+  Mediterranean: 'Địa Trung Hải',
+  'Middle Eastern': 'Trung Đông',
+  Nordic: 'Bắc Âu',
+  Southern: 'Miền Nam (Mỹ)',
 }
 
 export const CATEGORY_LABELS_VI: Record<(typeof CATEGORIES)[number], string> = {

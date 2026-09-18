@@ -56,10 +56,21 @@ up at all (different id space, not just a different name for the same dish).
 TheMealDB's data is much smaller/patchier than Spoonacular's and shapes real
 constraints in `api/_lib/mealdb.ts` and `src/lib/cuisines.ts`:
 
-- `CUISINES` is a **verified subset** of areas that actually have recipes
-  (checked live against the API) — TheMealDB's own `list.php?a=list`
-  endpoint returns all ~195 UN countries regardless of whether any have
-  recipes, so that raw list is never used directly.
+- `CUISINES` combines two verified sources: a subset of TheMealDB areas that
+  actually have recipes (checked live against the API — TheMealDB's own
+  `list.php?a=list` endpoint returns all ~195 UN countries regardless of
+  whether any have recipes, so that raw list is never used directly), plus
+  Spoonacular's own supported cuisine vocabulary (verified live against
+  spoonacular.com/food-api/docs) for the regional/style names TheMealDB has
+  no data for (Asian, Mediterranean, Korean, etc.). A cuisine name not in
+  Spoonacular's vocabulary must never be sent to it as the `cuisine` param —
+  confirmed live that Spoonacular returns HTTP 200 with an empty result set
+  for an unrecognized value rather than an error, which is indistinguishable
+  from a genuine "no matches" and would silently defeat the mealdb fallback
+  for real TheMealDB countries like Jamaican/Kenyan/Polish (their real
+  recipes would never be reached). `api/_lib/spoonacular.ts`'s
+  `isKnownSpoonacularCuisine` guards against this in both
+  `spoonacularSearch` and `spoonacularRandom`.
 - There's no diet-restriction concept in TheMealDB (Vegetarian/Vegan exist
   only as two of the 14 fixed `CATEGORIES`, alongside things like
   Beef/Dessert/Seafood) and no combined multi-filter search — TheMealDB's
