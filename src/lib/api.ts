@@ -16,6 +16,8 @@ export interface RecipeDetail extends RecipeSummary {
   ingredients: { id: number; name: string; measure: string }[]
   /** Extra stock photos for the slideshow -- not guaranteed to be this exact dish. */
   images: string[]
+  /** A YouTube video guide, when one was found. */
+  videoUrl?: string
 }
 
 export interface RecommendDishRequest {

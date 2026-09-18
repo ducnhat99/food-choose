@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { useRecipe } from '../hooks/useRecipes'
 import { useAddFavorite } from '../hooks/useFavorites'
 import type { RecipeSource } from '../lib/api'
+import { getYoutubeEmbedUrl } from '../lib/youtube'
 
 /**
  * Splits raw instructions text into discrete steps for display. Handles the
@@ -60,6 +61,7 @@ export function RecipeDetail() {
   if (!recipe) return null
 
   const steps = parseInstructionSteps(recipe.instructions)
+  const videoEmbedUrl = recipe.videoUrl ? getYoutubeEmbedUrl(recipe.videoUrl) : null
 
   return (
     <div className="space-y-4">
@@ -110,6 +112,22 @@ export function RecipeDetail() {
           ))}
         </ol>
       </div>
+
+      {videoEmbedUrl && (
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">{t('recipe.videoGuide')}</h2>
+          <div className="mt-3 aspect-video w-full overflow-hidden rounded-lg bg-neutral-100">
+            <iframe
+              src={videoEmbedUrl}
+              title={recipe.title}
+              className="h-full w-full"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

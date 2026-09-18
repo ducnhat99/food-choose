@@ -2,11 +2,13 @@ import type { RecipeDetail } from './mealdb.js'
 import { translateIngredientName, translateMeasure } from './glossary.js'
 import { searchDishImages } from './images.js'
 import { translateToVietnamese } from './translate.js'
+import { searchYoutubeVideo } from './youtube.js'
 
 /**
  * Shared last step for any RecipeDetail, regardless of how it was fetched
- * (by id, or a random pick): attaches stock photos and translates everything
- * to Vietnamese when requested. Mutates and returns the same object.
+ * (by id, or a random pick): attaches stock photos, finds a video guide, and
+ * translates everything to Vietnamese when requested. Mutates and returns
+ * the same object.
  */
 export async function finalizeRecipe(
   recipe: RecipeDetail,
@@ -16,6 +18,15 @@ export async function finalizeRecipe(
   // translation below -- searching with a Vietnamese title against Commons'
   // English-biased index would return poor or no results.
   recipe.images = await searchDishImages(recipe.title)
+
+  // TheMealDB recipes already carry a real video link (strYoutube); only
+  // spend YouTube's limited search.list quota on the ones that don't
+  // (Spoonacular, which has no video data at all). Same English-title
+  // reasoning as the image search above.
+  if (!recipe.videoUrl) {
+    const videoUrl = await searchYoutubeVideo(recipe.title)
+    if (videoUrl) recipe.videoUrl = videoUrl
+  }
 
   if (language === 'vi') {
     // Ingredient names/measures are a closed vocabulary (units, common

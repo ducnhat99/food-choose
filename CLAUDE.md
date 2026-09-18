@@ -144,12 +144,26 @@ api/
                                separate serverless invocations
   _lib/finalize.ts          — finalizeRecipe: the shared last step for any RecipeDetail regardless
                                of how it was fetched (by id, or a random pick) -- attaches
-                               _lib/images.ts stock photos and translates to Vietnamese when
-                               requested (title/instructions/category/area always via AI; each
-                               ingredient name/measure tries _lib/glossary.ts first and only sends
-                               the leftovers to the AI batch, preserving the original
-                               name/measure order when merging results back). Used by both
-                               recipe.ts and random.ts so this logic exists in exactly one place
+                               _lib/images.ts stock photos, fills in a video guide via
+                               _lib/youtube.ts (only when the recipe has no native one already --
+                               see below), and translates to Vietnamese when requested
+                               (title/instructions/category/area always via AI; each ingredient
+                               name/measure tries _lib/glossary.ts first and only sends the
+                               leftovers to the AI batch, preserving the original name/measure
+                               order when merging results back). Used by both recipe.ts and
+                               random.ts so this logic exists in exactly one place
+  _lib/youtube.ts           — searchYoutubeVideo: an optional video guide via YouTube Data API
+                               v3's search.list, only called when a recipe has no video link
+                               already (TheMealDB's own strYoutube is used directly in
+                               _lib/mealdb.ts and is never overwritten) -- so this is spent only on
+                               Spoonacular recipes, which have no video data of any kind (checked
+                               live: their /recipes/{id}/information response has no
+                               video/youtube field at all). Returns null on a missing
+                               YOUTUBE_API_KEY or any failure, same contract as the other provider
+                               helpers -- RecipeDetail simply shows no video section rather than
+                               erroring. search.list has its own separate daily quota bucket
+                               (confirmed live against Google's quota docs): 100 calls/day, apart
+                               from the 10,000-unit pool shared by every other YouTube endpoint
   _lib/images.ts            — searchDishImages: extra stock photos for RecipeDetail's slideshow,
                                sourced from Wikimedia Commons (no API key needed at all). Neither
                                recipe provider has more than one real photo per dish, so this is a

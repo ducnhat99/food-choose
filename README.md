@@ -46,7 +46,9 @@ Fill in `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `OPENAI_API_KEY`
 `SPOONACULAR_API_KEY` is also optional — leave it blank to run on TheMealDB
 alone, or set it to get Spoonacular's larger catalog as the primary source.
 The RecipeDetail image slideshow needs no key at all — its extra stock photos
-come from Wikimedia Commons.
+come from Wikimedia Commons. `YOUTUBE_API_KEY` is optional too — it fills in a
+video guide for Spoonacular recipes (TheMealDB recipes already have one
+built in); leave it blank to simply show no video for those.
 
 Only the `VITE_`-prefixed vars get bundled into the browser. Everything else
 is read server-side only, by the functions in `api/`.

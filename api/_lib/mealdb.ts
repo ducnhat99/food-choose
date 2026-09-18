@@ -15,6 +15,8 @@ export interface RecipeDetail extends RecipeSummary {
   ingredients: { id: number; name: string; measure: string }[]
   /** Extra stock photos (from Wikimedia Commons) for the slideshow, beyond the one real `image`. */
   images: string[]
+  /** A YouTube video guide -- TheMealDB's own strYoutube, or a search.list fallback for Spoonacular (see finalize.ts). */
+  videoUrl?: string
 }
 
 interface MealDbSummary {
@@ -31,6 +33,7 @@ interface MealDbRecipe {
   strCategory: string
   strArea: string
   strInstructions: string
+  strYoutube?: string | null
   [key: `strIngredient${number}`]: string | null | undefined
   [key: `strMeasure${number}`]: string | null | undefined
 }
@@ -99,6 +102,7 @@ function mapMealDbRecipe(meal: MealDbRecipe): RecipeDetail {
     instructions: meal.strInstructions,
     ingredients,
     images: [],
+    videoUrl: meal.strYoutube || undefined,
     source: 'mealdb',
   }
 }

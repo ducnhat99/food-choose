@@ -60,6 +60,7 @@ export const translations = {
   'recipe.ingredients': { en: 'Ingredients', vi: 'Nguyên liệu' },
   'recipe.instructions': { en: 'Instructions', vi: 'Hướng dẫn' },
   'recipe.stockPhoto': { en: 'Stock photo', vi: 'Ảnh minh họa' },
+  'recipe.videoGuide': { en: 'Video guide', vi: 'Video hướng dẫn' },
 
   'favorites.title': { en: 'Favorites', vi: 'Yêu thích' },
   'favorites.empty': { en: 'No favorites saved yet.', vi: 'Chưa có món ăn yêu thích nào được lưu.' },
