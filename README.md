@@ -1,4 +1,4 @@
-# Food Choose
+# Sun's Kitchen
 
 Helps you decide what dish to cook: browse/search recipes, save favorites, and
 get an AI-picked recommendation (OpenAI) grounded in a real, fetchable recipe.

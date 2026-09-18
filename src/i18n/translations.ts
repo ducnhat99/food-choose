@@ -1,7 +1,7 @@
 export type Language = 'en' | 'vi'
 
 export const translations = {
-  'nav.brand': { en: 'Food Choose', vi: 'Food Choose' },
+  'nav.brand': { en: "Sun's Kitchen", vi: "Sun's Kitchen" },
   'nav.search': { en: 'Search', vi: 'Tìm kiếm' },
   'nav.favorites': { en: 'Favorites', vi: 'Yêu thích' },
   'nav.preferences': { en: 'Preferences', vi: 'Tùy chọn' },

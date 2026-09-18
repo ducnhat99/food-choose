@@ -48,7 +48,11 @@ export function BackgroundDecoration() {
             left: item.left,
             right: item.right,
             bottom: item.bottom,
-            fontSize: item.size,
+            // clamp() shrinks these toward the low end on narrow phone
+            // viewports (where the same absolute size would visually crowd
+            // the shorter distance between percentage-based positions)
+            // while still hitting the intended size from tablet width up.
+            fontSize: `clamp(1.5rem, 6vw, ${item.size})`,
             transform: `rotate(${item.rotate})`,
           }}
         >

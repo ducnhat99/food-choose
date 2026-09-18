@@ -35,7 +35,7 @@ export function Login() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         <div>
@@ -45,7 +45,7 @@ export function Login() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}

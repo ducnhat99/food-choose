@@ -15,7 +15,7 @@ There is no test runner configured yet.
 
 ## Architecture
 
-Food Choose is a Vite + React + TypeScript SPA with a Vercel-hosted backend.
+Sun's Kitchen is a Vite + React + TypeScript SPA with a Vercel-hosted backend.
 Both frontend and backend deploy together as one Vercel project. Two categories
 of external data:
 

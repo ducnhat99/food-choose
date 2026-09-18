@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { usePreferences } from '../hooks/usePreferences'
 import { useSearchRecipes } from '../hooks/useRecipes'
 import { CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
+import { selectArrowStyle } from '../lib/selectStyle'
 
 export function Search() {
   const { t, language } = useLanguage()
@@ -28,32 +29,35 @@ export function Search() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-neutral-900">{t('search.title')}</h1>
-      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t('search.placeholder')}
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="w-full flex-1 rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
         />
-        <select
-          value={cuisine}
-          onChange={(e) => setCuisine(e.target.value)}
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        >
-          <option value="">{t('common.any')}</option>
-          {CUISINES.map((c) => (
-            <option key={c} value={c}>
-              {language === 'vi' ? CUISINE_LABELS_VI[c] : c}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
-        >
-          {t('search.submit')}
-        </button>
+        <div className="flex gap-2">
+          <select
+            value={cuisine}
+            onChange={(e) => setCuisine(e.target.value)}
+            style={selectArrowStyle}
+            className="flex-1 appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:flex-none sm:text-sm"
+          >
+            <option value="">{t('common.any')}</option>
+            {CUISINES.map((c) => (
+              <option key={c} value={c}>
+                {language === 'vi' ? CUISINE_LABELS_VI[c] : c}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+          >
+            {t('search.submit')}
+          </button>
+        </div>
       </form>
 
       {isLoading && <p className="text-neutral-500">{t('search.loading')}</p>}
@@ -62,7 +66,7 @@ export function Search() {
         <p className="text-neutral-600">{t('search.noResults')}</p>
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {data?.map((recipe) => (
           <Link
             key={recipe.id}

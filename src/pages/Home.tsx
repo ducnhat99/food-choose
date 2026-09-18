@@ -7,6 +7,7 @@ import { usePreferences } from '../hooks/usePreferences'
 import { useRandomRecipe } from '../hooks/useRandomRecipe'
 import { useRecommendDish } from '../hooks/useRecommendDish'
 import { CATEGORIES, CATEGORY_LABELS_VI, CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
+import { selectArrowStyle } from '../lib/selectStyle'
 import type { RecipeDetail } from '../lib/api'
 
 function RandomDish() {
@@ -49,11 +50,12 @@ function RandomDish() {
         <h2 className="text-lg font-semibold text-neutral-900">{t('home.randomTitle')}</h2>
         <p className="mt-1 text-neutral-600">{t('home.randomSubtitle')}</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <select
           value={cuisine}
           onChange={(e) => setCuisine(e.target.value)}
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          style={selectArrowStyle}
+          className="w-full appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:w-auto sm:text-sm"
         >
           <option value="">{t('common.any')}</option>
           {CUISINES.map((c) => (
@@ -66,7 +68,7 @@ function RandomDish() {
           type="button"
           onClick={handleClick}
           disabled={isPending}
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-50"
+          className="w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-50 sm:w-auto"
         >
           {t('home.randomButton')}
         </button>
@@ -136,7 +138,7 @@ export function Home() {
             value={ingredients}
             onChange={(e) => setIngredients(e.target.value)}
             placeholder={t('home.ingredientsPlaceholder')}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         <div>
@@ -146,10 +148,10 @@ export function Home() {
             value={mood}
             onChange={(e) => setMood(e.target.value)}
             placeholder={t('home.moodPlaceholder')}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="block text-sm font-medium text-neutral-700">{t('home.timeLabel')}</label>
             <input
@@ -157,7 +159,7 @@ export function Home() {
               min={1}
               value={timeAvailable}
               onChange={(e) => setTimeAvailable(e.target.value)}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
             />
           </div>
           <div>
@@ -167,7 +169,8 @@ export function Home() {
             <select
               value={cuisine}
               onChange={(e) => setCuisine(e.target.value)}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              style={selectArrowStyle}
+              className="mt-1 w-full appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
             >
               <option value="">{t('common.any')}</option>
               {CUISINES.map((c) => (
@@ -184,7 +187,8 @@ export function Home() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              style={selectArrowStyle}
+              className="mt-1 w-full appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
             >
               <option value="">{t('common.any')}</option>
               {CATEGORIES.map((c) => (

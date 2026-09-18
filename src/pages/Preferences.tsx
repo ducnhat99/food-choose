@@ -54,7 +54,7 @@ export function Preferences() {
             value={dietary}
             onChange={(e) => setDietary(e.target.value)}
             placeholder={t('preferences.dietaryPlaceholder')}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         <div>
@@ -66,7 +66,7 @@ export function Preferences() {
             value={disliked}
             onChange={(e) => setDisliked(e.target.value)}
             placeholder={t('preferences.dislikedPlaceholder')}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         <div>
@@ -78,7 +78,7 @@ export function Preferences() {
             value={cuisines}
             onChange={(e) => setCuisines(e.target.value)}
             placeholder={t('preferences.cuisinesPlaceholder')}
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
         <button
