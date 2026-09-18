@@ -61,6 +61,11 @@ export const translations = {
   'recipe.instructions': { en: 'Instructions', vi: 'Hướng dẫn' },
   'recipe.stockPhoto': { en: 'Stock photo', vi: 'Ảnh minh họa' },
   'recipe.videoGuide': { en: 'Video guide', vi: 'Video hướng dẫn' },
+  'recipe.expandButton': { en: 'Get more detailed guide', vi: 'Xem hướng dẫn chi tiết hơn' },
+  'recipe.expanding': {
+    en: 'Writing a more detailed guide...',
+    vi: 'Đang viết hướng dẫn chi tiết hơn...',
+  },
 
   'favorites.title': { en: 'Favorites', vi: 'Yêu thích' },
   'favorites.empty': { en: 'No favorites saved yet.', vi: 'Chưa có món ăn yêu thích nào được lưu.' },

@@ -15,8 +15,12 @@ export interface RecipeDetail extends RecipeSummary {
   ingredients: { id: number; name: string; measure: string }[]
   /** Extra stock photos (from Wikimedia Commons) for the slideshow, beyond the one real `image`. */
   images: string[]
-  /** A YouTube video guide -- TheMealDB's own strYoutube, or a search.list fallback for Spoonacular (see finalize.ts). */
-  videoUrl?: string
+  /**
+   * YouTube video guide(s) -- TheMealDB's own strYoutube (0 or 1 entries),
+   * plus a search.list result appended by finalize.ts when applicable (see
+   * there for when a second entry is added vs. one replacing the other).
+   */
+  videoUrls: string[]
 }
 
 interface MealDbSummary {
@@ -30,8 +34,11 @@ interface MealDbRecipe {
   idMeal: string
   strMeal: string
   strMealThumb: string
-  strCategory: string
-  strArea: string
+  // TheMealDB's own data isn't always complete -- confirmed live (recipe
+  // 53496) that strArea can be null even though every other field is
+  // populated, so these can't be typed as plain non-nullable strings.
+  strCategory: string | null
+  strArea: string | null
   strInstructions: string
   strYoutube?: string | null
   [key: `strIngredient${number}`]: string | null | undefined
@@ -97,12 +104,17 @@ function mapMealDbRecipe(meal: MealDbRecipe): RecipeDetail {
     id: Number(meal.idMeal),
     title: meal.strMeal,
     image: meal.strMealThumb,
-    category: meal.strCategory,
-    area: meal.strArea,
+    // Same fallback as Spoonacular's mapRecipeInformation, for the same
+    // reason -- a blank badge reads as a display bug rather than a
+    // legitimately missing value, and these go through the same
+    // finalizeRecipe translation pipeline so they localize to Vietnamese
+    // automatically too.
+    category: meal.strCategory || 'Uncategorized',
+    area: meal.strArea || 'International',
     instructions: meal.strInstructions,
     ingredients,
     images: [],
-    videoUrl: meal.strYoutube || undefined,
+    videoUrls: meal.strYoutube ? [meal.strYoutube] : [],
     source: 'mealdb',
   }
 }

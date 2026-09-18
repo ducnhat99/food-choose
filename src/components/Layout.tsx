@@ -88,7 +88,7 @@ export function Layout() {
       {/* Mobile nav drawer. Always mounted (rather than conditionally
           rendered) so the open/close transform can animate; sm:hidden keeps
           it fully out of the tablet/desktop layout regardless of state. */}
-      <div className={`fixed inset-0 z-50 sm:hidden ${menuOpen ? '' : 'pointer-events-none'}`}>
+      <div className={`fixed inset-0 z-50 h-dvh w-dvw sm:hidden ${menuOpen ? '' : 'pointer-events-none'}`}>
         <div
           onClick={closeMenu}
           aria-hidden="true"

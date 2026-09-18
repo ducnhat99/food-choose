@@ -112,7 +112,25 @@ src/pages/                  — one file per route, wired up in src/App.tsx (rec
 
 api/
   _lib/translate.ts         — translateToVietnamese/translateToEnglish: shared OpenAI batch-
-                               translation helpers, provider-agnostic
+                               translation helpers, provider-agnostic. Validates that the model's
+                               `translations` array is exactly the same length as the input `texts`
+                               array before returning it -- every caller assigns translations[i]
+                               back to the i-th input by position, so a wrong-length response would
+                               otherwise silently shift every entry after the discrepancy onto the
+                               wrong field. On a mismatch, returns the original `texts` unchanged
+                               (untranslated) rather than risk serving misaligned, meaningless text.
+                               translateIngredientPhrases shares the same underlying call/validation
+                               logic (callTranslationModel) but with a different, specialized system
+                               prompt: it's for translating a combined "quantity/descriptor +
+                               ingredient name" line (used by finalize.ts when a measure isn't a
+                               recognized unit -- see glossary.ts/finalize.ts below), and explicitly
+                               asks for natural noun-first Vietnamese ingredient-list phrasing
+                               instead of a literal translation that preserves English word order.
+                               Confirmed live this distinction matters: the generic prompt correctly
+                               translates the words but keeps English ordering ("For serving
+                               lettuce" -> "Để phục vụ xà lách", annotation before the noun -- valid
+                               words, backwards ingredient-list phrasing); the specialized prompt
+                               produces "Xà lách ăn kèm" instead
   _lib/glossary.ts          — translateIngredientName/translateMeasure: a static lookup table for
                                units (cup, tbsp, gram, ...) and common ingredient names (chicken,
                                garlic, fish sauce, ...). These have exactly one correct Vietnamese
@@ -125,7 +143,12 @@ api/
                                normalization to the shared RecipeSummary/RecipeDetail shape
                                (source: 'mealdb'). mealdbRandom composes random.php (no cuisine
                                filter exists) with the existing area-filter search + a random pick
-                               when a cuisine is requested
+                               when a cuisine is requested. strArea/strCategory can themselves be
+                               null even on an otherwise-complete TheMealDB recipe (confirmed live,
+                               id 53496 has no area) -- mapMealDbRecipe falls back to
+                               'International'/'Uncategorized', same as spoonacularRecipe below and
+                               for the same reason (a blank badge reads as broken, not "not
+                               applicable", and the fallback still localizes via finalizeRecipe)
   _lib/spoonacular.ts       — spoonacularSearch/spoonacularRecipe/spoonacularRandom: same shared
                                shape (source: 'spoonacular'); all return null on ANY failure
                                (missing/invalid key, quota exhausted, network error) so callers
@@ -146,24 +169,125 @@ api/
                                of how it was fetched (by id, or a random pick) -- attaches
                                _lib/images.ts stock photos, fills in a video guide via
                                _lib/youtube.ts (only when the recipe has no native one already --
-                               see below), and translates to Vietnamese when requested
-                               (title/instructions/category/area always via AI; each ingredient
-                               name/measure tries _lib/glossary.ts first and only sends the
-                               leftovers to the AI batch, preserving the original name/measure
-                               order when merging results back). Used by both recipe.ts and
-                               random.ts so this logic exists in exactly one place
+                               see below), and translates to Vietnamese when requested. title/
+                               category/area, instructions, and the ingredients batch are three
+                               separate translateToVietnamese calls (not one combined ~20-30-item
+                               batch) so each is smaller and less likely to come back malformed,
+                               and so a bad response in one doesn't also revert the others.
+                               instructions specifically gets its own single-item call rather than
+                               riding along with title/category/area -- confirmed live that bundled
+                               together, the model sometimes splits the long, multi-paragraph
+                               instructions text into several array entries instead of translating
+                               it as one string (observed: a 4-item input came back with 12 items),
+                               likely mistaking its internal line breaks for separate array items to
+                               expand. A lone 1-item array leaves it nothing to conflate that with.
+                               _lib/translate.ts also now validates the response array length
+                               against the input and falls back to the original English text on any
+                               mismatch, as a second line of defense.
+                               Per ingredient, which translation path is used depends on whether the
+                               measure is a recognized real unit (glossaryMeasures[i] !== null):
+                               if so, the measure is used as-is and only the name (if not itself a
+                               glossary hit) is translated independently -- this is safe because a
+                               countable unit like "cup" reads naturally before the noun in
+                               Vietnamese too, same word order as English ("3 chén" + "gạo lứt").
+                               If the measure ISN'T a recognized unit, it's usually a bare size or
+                               purpose descriptor instead ("1 small", "2 large", "For serving") with
+                               no unit word -- in that case the whole "measure name" phrase is sent
+                               to translateIngredientPhrases (_lib/translate.ts) together as one
+                               string, not measure and name independently, and the result is stored
+                               entirely in `name` with `measure` set to ''. This exists because
+                               translating a bare descriptor in isolation and gluing it in front of
+                               an independently-translated name produces backwards Vietnamese
+                               grammar -- confirmed live that "1 small" + "chili pepper" came out as
+                               "1 nhỏ Ớt trái" (adjective before the noun, meaningless word order)
+                               under the old always-independent approach. Combining the phrase into
+                               one generic translateToVietnamese call was a necessary but
+                               insufficient fix: it correctly produced "1 ớt nhỏ" for the size-
+                               descriptor case, but for a purpose-annotation case ("For serving
+                               lettuce") it still preserved English order ("Để phục vụ xà lách",
+                               annotation before the noun) since the generic prompt has no notion of
+                               ingredient-list conventions. translateIngredientPhrases's dedicated
+                               prompt (explicitly asking for noun-first Vietnamese phrasing) fixes
+                               this too, confirmed live: "Xà lách ăn kèm" instead.
+                               The two AI-bound arrays (namesToTranslate for the independent path,
+                               combinedTexts for the whole-phrase path) must each stay a single pass
+                               in ingredient order, not interleaved with each other or split across
+                               calls in a way that breaks positional alignment -- interleaving
+                               name/measure per ingredient in an earlier version of this code caused
+                               a real, separately-reproduced bug where every ingredient after one
+                               needing both fields translated silently paired with the wrong
+                               measure/name. Used by both recipe.ts and random.ts so this logic
+                               exists in exactly one place
+  _lib/vietnameseDishName.ts — resolveVietnameseDishName: an OpenAI call that identifies a dish's
+                               actual, commonly-used Vietnamese name (e.g. "Bún chả") for use as a
+                               YouTube search query, given the recipe's English title + ingredient
+                               names. Distinct from a plain translateToVietnamese call on the title,
+                               which produces a faithful but literal translation -- confirmed live
+                               this differs meaningfully for dishes with a specific traditional
+                               compound name: "Vietnamese Grilled Pork with Vermicelli Noodles"
+                               translates literally to "Thịt Nướng Việt Nam với Bún", a phrase no
+                               real Vietnamese video would be titled with, instead of "Bún chả"/"Bún
+                               thịt nướng". Returns null (not the English title) on a missing
+                               OPENAI_API_KEY or any failure, so finalize.ts can fall back to the
+                               plain-translation query instead
   _lib/youtube.ts           — searchYoutubeVideo: an optional video guide via YouTube Data API
-                               v3's search.list, only called when a recipe has no video link
-                               already (TheMealDB's own strYoutube is used directly in
-                               _lib/mealdb.ts and is never overwritten) -- so this is spent only on
-                               Spoonacular recipes, which have no video data of any kind (checked
-                               live: their /recipes/{id}/information response has no
-                               video/youtube field at all). Returns null on a missing
-                               YOUTUBE_API_KEY or any failure, same contract as the other provider
-                               helpers -- RecipeDetail simply shows no video section rather than
-                               erroring. search.list has its own separate daily quota bucket
-                               (confirmed live against Google's quota docs): 100 calls/day, apart
-                               from the 10,000-unit pool shared by every other YouTube endpoint
+                               v3's search.list. For non-Vietnamese cuisines, only called when a
+                               recipe has no video link already (TheMealDB's own strYoutube is used
+                               directly in _lib/mealdb.ts) -- so this is spent only on Spoonacular
+                               recipes, which have no video data of any kind (checked live: their
+                               /recipes/{id}/information response has no video/youtube field at
+                               all). Returns null on a missing YOUTUBE_API_KEY or any failure, same
+                               contract as the other provider helpers -- RecipeDetail simply shows
+                               no video section rather than erroring. search.list has its own
+                               separate daily quota bucket (confirmed live against Google's quota
+                               docs): 100 calls/day, apart from the 10,000-unit pool shared by every
+                               other YouTube endpoint.
+                               Requests 5 candidates (maxResults=5) instead of 1 -- free, since
+                               search.list's quota cost is 1 unit per call regardless of
+                               maxResults -- and picks whichever title actually shares significant
+                               words with the dish name via bestMatchIndex, rather than trusting
+                               YouTube's top relevance result unconditionally. Reported live that the
+                               top result is sometimes a plausible-looking but off-topic video
+                               (relevance ranking also weighs channel authority/popularity, not just
+                               title match) -- confirmed with a real search for "Fall Classic: Carrot
+                               Cake": the unfiltered top result was a gimmicky "The Queen of England's
+                               Famous Carrot Cake" video, while bestMatchIndex correctly picked "The
+                               best fall carrot cake recipe" instead, which shares more of the dish's
+                               actual words. TITLE_STOPWORDS excludes generic words that appear in
+                               nearly every cooking-video title regardless of dish ("recipe", "how to
+                               make", "cách nấu", ...) so the overlap score reflects genuine dish-name
+                               matches; ties keep YouTube's own relevance order (first-scored-highest
+                               wins), and a dish name/candidates with zero overlap fall back to the
+                               first (YouTube's top) result rather than an arbitrary pick.
+                               `language: 'vi'` biases toward an actually Vietnamese video (a
+                               Vietnamese query string plus relevanceLanguage/regionCode params) --
+                               finalize.ts passes this whenever recipe.area is "Vietnamese" (checked
+                               before that field is overwritten by display-language translation, so
+                               it applies regardless of the page's own display language), after
+                               resolving the actual query text first via
+                               _lib/vietnameseDishName.ts's resolveVietnameseDishName (falling back
+                               to a plain translateToVietnamese call on the title if that fails --
+                               see below). For a Vietnamese cuisine specifically, finalize.ts calls
+                               this search EVEN when a native video already exists, and shows BOTH
+                               (deduped by video id via dedupeVideoUrls, in case the search happens
+                               to return the exact same video) rather than one replacing the other --
+                               per explicit request, since a native link isn't guaranteed to actually
+                               be in Vietnamese (confirmed live: recipe 53232, "Vietnamese chicken
+                               salad", linked an English-language RecipeTin Eats video) and a native
+                               video plus a freshly-searched Vietnamese one are often different,
+                               both-useful takes on the same dish (confirmed live: the search added a
+                               real "Gỏi gà rau răm" video from a Vietnamese channel alongside the
+                               existing English one). A plain English title search for a Vietnamese
+                               dish reliably returns mostly Western-channel English videos, while a
+                               Vietnamese-language query reliably surfaces real Vietnamese channels.
+                               If the query-resolution call fails (translate.ts's safety net returns
+                               the input unchanged), finalize.ts detects the no-op and falls through
+                               to a plain English search rather than sending an English query with
+                               Vietnamese bias params, which would just return worse results for no
+                               reason. For every other cuisine, this search is only attempted when
+                               there's no native video at all (RecipeDetail.videoUrls stays a single-
+                               entry array in that case), since there's nothing to usefully show
+                               alongside and no reason to spend the shared search.list quota
   _lib/images.ts            — searchDishImages: extra stock photos for RecipeDetail's slideshow,
                                sourced from Wikimedia Commons (no API key needed at all). Neither
                                recipe provider has more than one real photo per dish, so this is a
@@ -222,6 +346,16 @@ api/
   translate.ts              — thin endpoint around _lib/translate.ts, used client-side only by
                                Favorites (translating saved titles, which come from Supabase, not a
                                fresh provider call)
+  _lib/expandInstructions.ts — expandInstructions: rewrites a recipe's instructions into a more
+                               detailed step-by-step guide via OpenAI, grounded in the recipe's own
+                               title/ingredients/instructions so it elaborates on the real recipe
+                               instead of inventing a different one (explicitly told to fall back to
+                               a plausible standard method, not exotic/fabricated steps, when the
+                               original instructions are empty or too sparse to elaborate on).
+                               On-demand only (a button on RecipeDetail, not run automatically on
+                               every recipe view) since it's an extra OpenAI call with no benefit
+                               for recipes whose instructions are already good
+  expand-instructions.ts    — thin endpoint around _lib/expandInstructions.ts
 
 supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above)
 ```

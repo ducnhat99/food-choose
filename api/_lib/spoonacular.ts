@@ -123,6 +123,9 @@ function mapRecipeInformation(data: SpoonacularRecipeInformation): RecipeDetail 
       measure: `${ing.amount} ${ing.unit}`.trim(),
     })),
     images: [],
+    // Spoonacular has no video data of any kind (confirmed live) -- always
+    // empty here, filled in by finalize.ts's YouTube search if applicable.
+    videoUrls: [],
     source: 'spoonacular',
   }
 }

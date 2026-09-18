@@ -36,7 +36,7 @@ export function RandomRevealModal({ loading, recipe, onViewRecipe, onClose }: Ra
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex h-dvh w-dvw items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <div

@@ -1,7 +1,10 @@
+import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ImageCarousel } from '../components/ImageCarousel'
+import { LoadingModal } from '../components/LoadingModal'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
+import { useExpandInstructions } from '../hooks/useExpandInstructions'
 import { useRecipe } from '../hooks/useRecipes'
 import { useAddFavorite } from '../hooks/useFavorites'
 import type { RecipeSource } from '../lib/api'
@@ -55,13 +58,24 @@ export function RecipeDetail() {
   const { data: recipe, isLoading, error } = useRecipe(recipeId, source, language)
   const { user } = useAuth()
   const addFavorite = useAddFavorite()
+  const expandInstructions = useExpandInstructions()
 
-  if (isLoading) return <p className="text-neutral-500">{t('recipe.loading')}</p>
+  // Reset any previously-generated detailed guide when navigating to a
+  // different recipe -- otherwise it would keep showing on the new page,
+  // since React Router reuses this component across param changes.
+  useEffect(() => {
+    expandInstructions.reset()
+  }, [recipeId, source])
+
+  if (isLoading) return <LoadingModal message={t('recipe.loading')} />
   if (error) return <p className="text-sm text-red-600">{(error as Error).message}</p>
   if (!recipe) return null
 
-  const steps = parseInstructionSteps(recipe.instructions)
-  const videoEmbedUrl = recipe.videoUrl ? getYoutubeEmbedUrl(recipe.videoUrl) : null
+  const displayedInstructions = expandInstructions.data ?? recipe.instructions
+  const steps = parseInstructionSteps(displayedInstructions)
+  const videoEmbedUrls = recipe.videoUrls
+    .map((url) => getYoutubeEmbedUrl(url))
+    .filter((url): url is string => url !== null)
 
   return (
     <div className="space-y-4">
@@ -96,7 +110,7 @@ export function RecipeDetail() {
         <ul className="list-inside list-disc text-neutral-700">
           {recipe.ingredients.map((ing) => (
             <li key={ing.id}>
-              {ing.measure} {ing.name}
+              {ing.measure ? `${ing.measure} ${ing.name}` : ing.name}
             </li>
           ))}
         </ul>
@@ -111,20 +125,47 @@ export function RecipeDetail() {
             </li>
           ))}
         </ol>
+
+        {expandInstructions.isPending && <LoadingModal message={t('recipe.expanding')} />}
+
+        {!expandInstructions.isSuccess && (
+          <button
+            type="button"
+            onClick={() =>
+              expandInstructions.mutate({
+                title: recipe.title,
+                ingredients: recipe.ingredients,
+                instructions: recipe.instructions,
+                language,
+              })
+            }
+            disabled={expandInstructions.isPending}
+            className="mt-3 rounded-md border border-teal-200 px-3 py-1.5 text-sm font-medium text-teal-700 hover:border-teal-400 hover:bg-teal-50 transition-colors disabled:opacity-50"
+          >
+            {t('recipe.expandButton')}
+          </button>
+        )}
+        {expandInstructions.error && (
+          <p className="mt-2 text-sm text-red-600">{(expandInstructions.error as Error).message}</p>
+        )}
       </div>
 
-      {videoEmbedUrl && (
+      {videoEmbedUrls.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">{t('recipe.videoGuide')}</h2>
-          <div className="mt-3 aspect-video w-full overflow-hidden rounded-lg bg-neutral-100">
-            <iframe
-              src={videoEmbedUrl}
-              title={recipe.title}
-              className="h-full w-full"
-              loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
+          <div className="mt-3 space-y-4">
+            {videoEmbedUrls.map((embedUrl) => (
+              <div key={embedUrl} className="aspect-video w-full overflow-hidden rounded-lg bg-neutral-100">
+                <iframe
+                  src={embedUrl}
+                  title={recipe.title}
+                  className="h-full w-full"
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            ))}
           </div>
         </div>
       )}

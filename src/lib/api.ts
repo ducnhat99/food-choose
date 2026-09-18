@@ -16,8 +16,15 @@ export interface RecipeDetail extends RecipeSummary {
   ingredients: { id: number; name: string; measure: string }[]
   /** Extra stock photos for the slideshow -- not guaranteed to be this exact dish. */
   images: string[]
-  /** A YouTube video guide, when one was found. */
-  videoUrl?: string
+  /** YouTube video guide(s) -- for a Vietnamese-cuisine dish this can have up to 2 (a native provider video and a search result). */
+  videoUrls: string[]
+}
+
+export interface ExpandInstructionsRequest {
+  title: string
+  ingredients: { name: string; measure: string }[]
+  instructions: string
+  language?: Language
 }
 
 export interface RecommendDishRequest {
@@ -75,4 +82,8 @@ export function randomRecipe(cuisine?: string, language?: Language): Promise<Rec
 
 export function translateTexts(texts: string[]): Promise<string[]> {
   return invoke<{ translations: string[] }>('translate', { texts }).then((r) => r.translations)
+}
+
+export function expandInstructions(request: ExpandInstructionsRequest): Promise<string> {
+  return invoke<{ instructions: string }>('expand-instructions', request).then((r) => r.instructions)
 }
