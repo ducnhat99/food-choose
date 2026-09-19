@@ -72,7 +72,7 @@ constraints in `api/_lib/mealdb.ts` and `src/lib/cuisines.ts`:
   `isKnownSpoonacularCuisine` guards against this in both
   `spoonacularSearch` and `spoonacularRandom`.
 - There's no diet-restriction concept in TheMealDB (Vegetarian/Vegan exist
-  only as two of the 14 fixed `CATEGORIES`, alongside things like
+  only as two of the 15 fixed `CATEGORIES`, alongside things like
   Beef/Dessert/Seafood) and no combined multi-filter search — TheMealDB's
   half of `api/recommend-dish.ts`'s `search_recipes` tool can only use one of
   query/area/category/mainIngredient per call. When Spoonacular answers
@@ -81,6 +81,17 @@ constraints in `api/_lib/mealdb.ts` and `src/lib/cuisines.ts`:
   `includeIngredients` params as a best-effort mapping (e.g. "Vegetarian" →
   `diet=vegetarian`, "Beef" → `includeIngredients=beef`) — the tool's
   LLM-facing schema never changes, only which provider and params answer it.
+- `CATEGORIES` includes "Beverage", which — like the Spoonacular-only
+  cuisines above — is Spoonacular-only: TheMealDB's Meal database has zero
+  drink recipes of any kind (verified live: `filter.php?c=Drink`/`Beverage`/
+  `Cocktail` all return 0 meals; drinks are a wholly separate database,
+  TheCocktailDB, not used here). Confirmed live against Spoonacular's docs
+  and a real `complexSearch` call that `type=beverage` (and the synonym
+  `type=drink`) returns real results (204 total). `mapCategoryToSpoonacular`
+  maps "Beverage" to `{ type: 'beverage' }` explicitly — it must not fall
+  into the generic `includeIngredients` catch-all used for
+  Beef/Chicken/Goat/Lamb/Pork/Seafood/Pasta/Miscellaneous, since "beverage"
+  isn't an ingredient and that would return nonsense results.
 - Recipe detail has no prep time or serving count in TheMealDB — RecipeDetail
   shows Category/Area badges instead. TheMealDB's `strInstructions` is plain
   text; Spoonacular's is HTML, stripped to plain text in
@@ -121,23 +132,37 @@ api/
                                (untranslated) rather than risk serving misaligned, meaningless text.
                                translateIngredientPhrases shares the same underlying call/validation
                                logic (callTranslationModel) but with a different, specialized system
-                               prompt: it's for translating a combined "quantity/descriptor +
-                               ingredient name" line (used by finalize.ts when a measure isn't a
-                               recognized unit -- see glossary.ts/finalize.ts below), and explicitly
-                               asks for natural noun-first Vietnamese ingredient-list phrasing
-                               instead of a literal translation that preserves English word order.
-                               Confirmed live this distinction matters: the generic prompt correctly
-                               translates the words but keeps English ordering ("For serving
-                               lettuce" -> "Để phục vụ xà lách", annotation before the noun -- valid
-                               words, backwards ingredient-list phrasing); the specialized prompt
-                               produces "Xà lách ăn kèm" instead
+                               prompt used for ALL ingredient name/measure text the glossary doesn't
+                               cover (both standalone names and a combined "quantity/descriptor +
+                               name" line -- see glossary.ts/finalize.ts below), for two confirmed-
+                               live reasons the generic prompt gets wrong: (1) word order -- it
+                               preserves English ordering literally ("For serving lettuce" -> "Để
+                               phục vụ xà lách", annotation before the noun -- valid words, backwards
+                               ingredient-list phrasing); the specialized prompt produces "Xà lách ăn
+                               kèm" instead. (2) completeness -- for less common culinary terms, it
+                               sometimes leaves part of the term as an untranslated English loanword
+                               or produces the wrong word entirely ("seltzer water" -> "nước
+                               seltzer", only "water" translated; "strawberry puree" -> "syrup dâu
+                               tây", wrong word, still English); the specialized prompt explicitly
+                               requires translating every word and produces "nước có ga" / "dâu tây
+                               xay nhuyễn" instead. (3) unit preference -- some US recipes measure a
+                               solid ingredient by length instead of weight ("1 inch fresh ginger",
+                               "2 inch cinnamon stick"). Confirmed live that Spoonacular has no gram
+                               equivalent for these either (even its own metric conversion leaves
+                               "inch" as "inch", since length-to-weight isn't a fixed factor -- it
+                               depends on the specific piece's thickness/density), so per explicit
+                               request this prompt has the model estimate a reasonable gram weight
+                               instead, prefixed with "khoảng" (approximately) since it's an estimate
+                               rather than an exact conversion ("1 inch fresh ginger" -> "khoảng 10g
+                               gừng tươi"). Only applies to length units (inch, cm); measures already
+                               in weight/volume units are left alone
   _lib/glossary.ts          — translateIngredientName/translateMeasure: a static lookup table for
                                units (cup, tbsp, gram, ...) and common ingredient names (chicken,
                                garlic, fish sauce, ...). These have exactly one correct Vietnamese
                                term each, so asking the AI translator for them was a source of
                                inconsistent/wrong wording; the glossary is checked first in
                                finalize.ts and only unmatched names/measures fall through to
-                               translateToVietnamese. Returns null (not a guess) on anything not in
+                               translateIngredientPhrases. Returns null (not a guess) on anything not in
                                the table, including compound measures like "1 (10 oz) can"
   _lib/mealdb.ts            — mealdbSearch/mealdbRecipe/mealdbRandom: TheMealDB fetch +
                                normalization to the shared RecipeSummary/RecipeDetail shape

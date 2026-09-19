@@ -110,26 +110,32 @@ export async function finalizeRecipe(
     const glossaryNames = recipe.ingredients.map((ing) => translateIngredientName(ing.name))
     const glossaryMeasures = recipe.ingredients.map((ing) => translateMeasure(ing.measure))
 
+    // Both the independent-name path and the combined "measure name" path
+    // (see below) go through translateIngredientPhrases rather than the
+    // generic translateToVietnamese -- confirmed live that the generic
+    // prompt, tuned for full sentences/titles, sometimes leaves uncommon
+    // ingredient nouns as untranslated English loanwords ("seltzer water"
+    // -> "nước seltzer", only "water" translated) or produces the wrong
+    // word entirely ("strawberry puree" -> "syrup dâu tây"). It also
+    // preserves English word order literally when a quantity/descriptor is
+    // combined with a name ("For serving lettuce" -> "Để phục vụ xà lách",
+    // annotation before the noun -- valid words, backwards ingredient-list
+    // order). translateIngredientPhrases's dedicated prompt requires full
+    // translation and noun-first Vietnamese phrasing for both cases.
+    //
     // When the measure IS a recognized real unit (cup, gram, ...), the name
-    // (if not a glossary hit either) is translated independently -- this
-    // works fine because a countable unit reads naturally before the noun
-    // in Vietnamese too, same as English ("3 chén" + "gạo nâu"). But when
-    // the measure ISN'T a recognized unit, it's usually a bare size
-    // descriptor instead ("1 small", "2 large") with no unit word at all.
-    // Translating that in isolation ("small" -> "nhỏ") and gluing it in
-    // front of an independently-translated name produces backwards
-    // Vietnamese grammar -- confirmed live: "1 small" + "chili pepper"
-    // came out as "1 nhỏ Ớt trái" (adjective placed before the noun
-    // instead of after, which is meaningless word order to a reader).
-    // For that case, translate the whole "measure name" phrase together via
-    // translateIngredientPhrases instead -- a prompt specifically told to
-    // produce natural noun-first Vietnamese ingredient phrasing, since even
-    // combining measure+name into one generic translateToVietnamese call
-    // preserved English word-order literally in practice (confirmed live:
-    // "For serving lettuce" -> "Để phục vụ xà lách", annotation before the
-    // noun -- valid Vietnamese words, backwards ingredient-list order).
-    // Store the result as a single combined string rather than trying to
-    // split it back into separate measure/name fields.
+    // (if not a glossary hit either) is still translated independently from
+    // the measure -- safe because a countable unit reads naturally before
+    // the noun in Vietnamese too, same as English ("3 chén" + "gạo nâu").
+    // But when the measure ISN'T a recognized unit, it's usually a bare
+    // size descriptor instead ("1 small", "2 large") with no unit word at
+    // all -- confirmed live that translating that in isolation and gluing
+    // it in front of an independently-translated name produces backwards
+    // Vietnamese grammar ("1 small" + "chili pepper" -> "1 nhỏ Ớt trái",
+    // adjective before the noun). For that case, the whole "measure name"
+    // phrase is translated together as one combined string instead, rather
+    // than trying to split the result back into separate measure/name
+    // fields.
     const nameIndices: number[] = []
     const namesToTranslate: string[] = []
     const combinedIndices: number[] = []
@@ -157,7 +163,7 @@ export async function finalizeRecipe(
       await Promise.all([
         translateToVietnamese([recipe.title, recipe.category, recipe.area]),
         translateToVietnamese([recipe.instructions]),
-        translateToVietnamese(namesToTranslate),
+        translateIngredientPhrases(namesToTranslate),
         translateIngredientPhrases(combinedTexts),
       ])
 

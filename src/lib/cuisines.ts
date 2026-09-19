@@ -67,7 +67,7 @@ export const CUISINES = [...MEALDB_CUISINES, ...SPOONACULAR_ONLY_CUISINES] as co
 // TheMealDB's real, fixed category list (list.php?c=list). Doubles as the
 // closest available filter axis to a "meal type" or "diet" (Vegan/
 // Vegetarian exist here as ordinary categories, not a separate diet field).
-export const CATEGORIES = [
+const MEALDB_CATEGORIES = [
   'Beef',
   'Breakfast',
   'Chicken',
@@ -83,6 +83,20 @@ export const CATEGORIES = [
   'Vegan',
   'Vegetarian',
 ] as const
+
+// TheMealDB's Meal database has zero drink recipes of any kind (verified
+// live: filter.php?c=Drink/Beverage/Cocktail all return 0 meals -- drinks
+// are a completely separate database, TheCocktailDB, not used here).
+// Spoonacular does support beverages natively via its `type` parameter
+// (confirmed live against their docs and a real complexSearch call: both
+// "beverage" and "drink" return the same 204 real results), so this
+// category -- like the Spoonacular-only cuisines above -- routes
+// exclusively through Spoonacular; api/recommend-dish.ts's
+// mapCategoryToSpoonacular must map it to `{ type: 'beverage' }` explicitly
+// rather than falling into the generic ingredient-hint fallback.
+const SPOONACULAR_ONLY_CATEGORIES = ['Beverage'] as const
+
+export const CATEGORIES = [...MEALDB_CATEGORIES, ...SPOONACULAR_ONLY_CATEGORIES] as const
 
 // These values are TheMealDB API parameters and must stay in English when
 // submitted -- these maps only translate the label shown in a <select>.
@@ -150,6 +164,7 @@ export const CATEGORY_LABELS_VI: Record<(typeof CATEGORIES)[number], string> = {
   Starter: 'Khai vị',
   Vegan: 'Thuần chay',
   Vegetarian: 'Ăn chay',
+  Beverage: 'Đồ uống',
 }
 
 /**

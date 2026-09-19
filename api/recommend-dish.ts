@@ -82,6 +82,11 @@ function mapCategoryToSpoonacular(category: string): {
   if (lower === 'dessert' || lower === 'breakfast') return { type: lower }
   if (lower === 'side') return { type: 'side dish' }
   if (lower === 'starter') return { type: 'appetizer' }
+  // Beverage has no TheMealDB equivalent at all (verified live: TheMealDB's
+  // Meal database has zero drink recipes) -- it's Spoonacular-only, and
+  // must map to `type`, not fall into the ingredient-hint catch-all below
+  // ("beverage" isn't an ingredient).
+  if (lower === 'beverage') return { type: 'beverage' }
   // Beef, Chicken, Goat, Lamb, Pork, Seafood, Pasta, Miscellaneous have no
   // Spoonacular filter equivalent -- best-effort treat as an ingredient hint.
   return { includeIngredients: lower }

@@ -89,32 +89,67 @@ export function translateToEnglish(texts: string[]): Promise<string[]> {
 }
 
 /**
- * Translates recipe ingredient lines (a quantity/descriptor combined with an
- * ingredient name, e.g. "1 small chili pepper", "For serving lettuce") to
- * Vietnamese -- used by finalize.ts specifically for measures that aren't a
- * recognized unit, where the whole phrase is translated together rather
- * than measure and name independently (see finalize.ts for why). The
- * generic translateToVietnamese prompt has no notion of ingredient-list
- * conventions and, confirmed live, preserves English word order literally
- * ("For serving lettuce" -> "Để phục vụ xà lách", annotation before the
- * noun) -- grammatically valid but backwards from how a Vietnamese
- * ingredient list actually reads. This prompt explicitly asks for the
- * ingredient noun first instead.
+ * Translates recipe ingredient text to Vietnamese -- either a standalone
+ * ingredient name (e.g. "strawberry puree") or a quantity/descriptor
+ * combined with a name (e.g. "1 small chili pepper", "For serving
+ * lettuce"). Used by finalize.ts for every ingredient name/measure the
+ * glossary doesn't cover, instead of the generic translateToVietnamese, for
+ * two reasons confirmed live:
+ *
+ * 1. Word order: the generic prompt preserves English order literally
+ *    ("For serving lettuce" -> "Để phục vụ xà lách", annotation before the
+ *    noun) -- grammatically valid but backwards from how a Vietnamese
+ *    ingredient list actually reads. This prompt asks for the noun first.
+ * 2. Completeness: for less common culinary terms, the generic prompt
+ *    sometimes leaves part of the term as an untranslated English loanword
+ *    instead of finding a real Vietnamese equivalent -- confirmed live:
+ *    "seltzer water" -> "nước seltzer" (only "water" translated),
+ *    "turbinado sugar" -> "đường turbinado" (only "sugar" translated),
+ *    "strawberry puree" -> "syrup dâu tây" (wrong word entirely, and still
+ *    English). This prompt explicitly requires translating every word.
+ * 3. Unit preference: some US recipes measure a solid ingredient by length
+ *    ("1 inch fresh ginger", "2 inch cinnamon stick") instead of weight --
+ *    confirmed live that Spoonacular has no gram equivalent for these
+ *    either (even its own metric conversion leaves "inch" as "inch", since
+ *    length-to-weight depends on the specific piece's thickness/density,
+ *    not a fixed factor), and the generic/prior prompt just left "inch"
+ *    untranslated ("1 inch fresh ginger" -> "1 inch gừng tươi"). Per
+ *    explicit request, this prompt has the model estimate a reasonable
+ *    gram weight instead (using its general knowledge of typical ingredient
+ *    sizes) and mark it as approximate, since it can't be an exact
+ *    conversion.
  */
 export function translateIngredientPhrases(texts: string[]): Promise<string[]> {
   return callTranslationModel(
     texts,
-    'Translate each string in the "texts" array to Vietnamese. Each string is a single recipe ' +
-      'ingredient line that combines a quantity, size, or purpose descriptor with an ingredient ' +
-      'name (e.g. "1 small chili pepper", "For serving lettuce", "2 large eggs, beaten"). ' +
-      'Vietnamese ingredient lists conventionally state the ingredient noun first, with the ' +
-      'quantity and any descriptor following it -- reorder words as needed to produce a natural, ' +
-      'idiomatic Vietnamese ingredient line rather than a literal word-for-word translation that ' +
-      'preserves English word order. For example: "1 small chili pepper" -> "1 quả ớt nhỏ" (not ' +
-      '"1 nhỏ ớt"); "For serving lettuce" -> "Xà lách (dùng để ăn kèm)" or "Xà lách ăn kèm" (not ' +
-      '"Để phục vụ xà lách"). Keep any numbers recognizable. An empty string stays an empty ' +
-      'string. Respond with a JSON object {"translations": string[]} whose length always exactly ' +
-      'equals the number of items in the input "texts" array, one output per input, in the same ' +
-      'order -- never more, never fewer.',
+    'Translate each string in the "texts" array to Vietnamese. Each string is recipe ingredient ' +
+      'text -- either a standalone ingredient/food name (e.g. "strawberry puree", "turbinado ' +
+      'sugar") or one combined with a quantity, size, or purpose descriptor (e.g. "1 small chili ' +
+      'pepper", "For serving lettuce", "2 large eggs, beaten"). ' +
+      'Translate every word fully into natural Vietnamese -- do not leave any word as an ' +
+      'untranslated English loanword just because it is a less common or technical culinary term. ' +
+      'Find the closest real Vietnamese culinary term or a plain descriptive translation instead ' +
+      '(only true proper nouns/brand names may stay as-is). For example: "seltzer water" -> ' +
+      '"nước có ga" or "nước soda" (not "nước seltzer"); "turbinado sugar" -> "đường thô" (not ' +
+      '"đường turbinado"); "strawberry puree" -> "dâu tây xay nhuyễn" or "sốt dâu tây nghiền" (not ' +
+      '"syrup dâu tây" or "puree dâu tây"). ' +
+      'When there is a quantity/descriptor combined with a name, Vietnamese ingredient lists ' +
+      'conventionally state the ingredient noun first, with the quantity and any descriptor ' +
+      'following it -- reorder words as needed to produce a natural, idiomatic Vietnamese ' +
+      'ingredient line rather than a literal word-for-word translation that preserves English word ' +
+      'order. For example: "1 small chili pepper" -> "1 quả ớt nhỏ" (not "1 nhỏ ớt"); "For serving ' +
+      'lettuce" -> "Xà lách (dùng để ăn kèm)" or "Xà lách ăn kèm" (not "Để phục vụ xà lách"). ' +
+      'If a measure describes the LENGTH of a piece of a solid ingredient (inch, inches, cm, ' +
+      'centimeter -- e.g. "1 inch fresh ginger", "2 inch cinnamon stick"), convert it to an ' +
+      "approximate weight in grams instead of keeping the length unit, using your knowledge of " +
+      'that ingredient\'s typical size/density to estimate a reasonable gram value, and prefix the ' +
+      'number with "khoảng" (approximately) since it is an estimate, not an exact conversion. For ' +
+      'example: "1 inch fresh ginger" -> "khoảng 10g gừng tươi" (not "1 inch gừng tươi"); "2 inch ' +
+      'cinnamon stick" -> "khoảng 5g quế cây". Do not do this for measures already in weight/volume ' +
+      'units (grams, cups, tablespoons, etc.) -- only for length-based ones. ' +
+      'Keep any other numbers recognizable. An empty string stays an empty string. Respond with a JSON ' +
+      'object {"translations": string[]} whose length always exactly equals the number of items ' +
+      'in the input "texts" array, one output per input, in the same order -- never more, never ' +
+      'fewer.',
   )
 }
