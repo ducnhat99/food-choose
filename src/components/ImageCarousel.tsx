@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 
 interface ImageCarouselProps {
@@ -8,9 +8,14 @@ interface ImageCarouselProps {
   stockFrom?: number
 }
 
+// How far a touch has to travel horizontally, in px, before it counts as a
+// swipe rather than an incidental finger wobble or a vertical page scroll.
+const SWIPE_THRESHOLD_PX = 40
+
 export function ImageCarousel({ images, alt, stockFrom }: ImageCarouselProps) {
   const { t } = useLanguage()
   const [index, setIndex] = useState(0)
+  const touchStartX = useRef<number | null>(null)
 
   if (images.length === 0) return null
 
@@ -24,9 +29,24 @@ export function ImageCarousel({ images, alt, stockFrom }: ImageCarouselProps) {
     setIndex((i) => (i + 1) % images.length)
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (deltaX > SWIPE_THRESHOLD_PX) prev()
+    else if (deltaX < -SWIPE_THRESHOLD_PX) next()
+  }
+
   return (
     <div className="w-full max-w-lg">
-      <div className="relative overflow-hidden rounded-lg bg-neutral-100">
+      <div
+        className="relative overflow-hidden rounded-lg bg-neutral-100"
+        onTouchStart={showPrevNext ? handleTouchStart : undefined}
+        onTouchEnd={showPrevNext ? handleTouchEnd : undefined}
+      >
         <img src={images[index]} alt={alt} className="aspect-4/3 w-full object-cover" />
         {isStock && (
           <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
