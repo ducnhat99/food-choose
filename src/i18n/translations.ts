@@ -18,17 +18,17 @@ export const translations = {
   'mode.ai': { en: 'AI', vi: 'AI' },
   'mode.aiBadge': { en: 'AI-generated recipe', vi: 'Công thức do AI tạo' },
 
-  'ai.limitTitle': { en: "That's today's limit", vi: 'Đã đạt giới hạn hôm nay' },
-  'ai.limitMessage': {
-    en: "You've reached today's limit of 5 AI-generated recipes. It resets tomorrow, or you can switch to API mode (top right) for unlimited recipes right now.",
-    vi: 'Bạn đã đạt giới hạn 5 công thức do AI tạo trong hôm nay. Giới hạn sẽ được làm mới vào ngày mai, hoặc bạn có thể chuyển sang chế độ API (góc trên bên phải) để dùng không giới hạn ngay bây giờ.',
+  'usage.limitTitle': { en: "That's today's limit", vi: 'Đã đạt giới hạn hôm nay' },
+  'usage.limitMessage': {
+    en: "You've reached today's limit of 5 recipes. It resets tomorrow.",
+    vi: 'Bạn đã đạt giới hạn 5 công thức trong hôm nay. Giới hạn sẽ được làm mới vào ngày mai.',
   },
-  'ai.limitClose': { en: 'Got it', vi: 'Đã hiểu' },
-  'ai.usageRemaining': {
-    en: 'You have {remaining} of {limit} AI-generated recipes left today.',
-    vi: 'Bạn còn {remaining}/{limit} công thức AI cho hôm nay.',
+  'usage.limitClose': { en: 'Got it', vi: 'Đã hiểu' },
+  'usage.remaining': {
+    en: 'You have {remaining} of {limit} recipes left today.',
+    vi: 'Bạn còn {remaining}/{limit} công thức cho hôm nay.',
   },
-  'ai.contactMessage': {
+  'usage.contactMessage': {
     en: 'Contact {email} for more support.',
     vi: 'Liên hệ {email} để được hỗ trợ thêm.',
   },

@@ -51,8 +51,8 @@ export interface RecommendDishResponse {
  * Thrown by invoke() for a non-ok response. Carries the raw `error` field
  * from the response body as `code`, separate from `message` (usually the
  * same string) -- so callers that care about a *specific* backend error
- * (currently just 'ai_limit_exceeded', see isAiLimitError below) can check
- * for it without string-matching the human-readable message.
+ * (currently just 'recipe_limit_exceeded', see isRecipeLimitError below)
+ * can check for it without string-matching the human-readable message.
  */
 export class ApiError extends Error {
   code?: string
@@ -62,16 +62,16 @@ export class ApiError extends Error {
   }
 }
 
-/** True for the daily AI-generation limit error (api/_lib/aiUsage.ts) -- callers use this to show a dedicated modal instead of an inline error string. */
-export function isAiLimitError(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.code === 'ai_limit_exceeded'
+/** True for the daily recipe limit error (api/_lib/recipeUsage.ts) -- callers use this to show a dedicated modal instead of an inline error string. */
+export function isRecipeLimitError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === 'recipe_limit_exceeded'
 }
 
 async function invoke<T>(path: string, body: object): Promise<T> {
   // Attaches the caller's Supabase session (if any) so the backend can tell
   // a signed-in user from an anonymous one, and an admin from a regular
-  // user, for the daily AI-generation limit (api/_lib/auth.ts). Harmless to
-  // send on every request, including ones that ignore it entirely.
+  // user, for the daily recipe limit (api/_lib/auth.ts). Harmless to send
+  // on every request, including ones that ignore it entirely.
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -126,15 +126,15 @@ export function expandInstructions(request: ExpandInstructionsRequest): Promise<
   return invoke<{ instructions: string }>('expand-instructions', request).then((r) => r.instructions)
 }
 
-export interface AiUsageInfo {
+export interface RecipeUsageInfo {
   isAdmin: boolean
   limit: number
   remaining: number
 }
 
-/** Current caller's daily AI-generation usage (api/_lib/aiUsage.ts) -- read-only, doesn't count as a use. */
-export function getAiUsage(): Promise<AiUsageInfo> {
-  return invoke('ai-usage', {})
+/** Current caller's daily recipe usage (api/_lib/recipeUsage.ts) -- read-only, doesn't count as a use. Applies regardless of catalog/AI mode. */
+export function getRecipeUsage(): Promise<RecipeUsageInfo> {
+  return invoke('recipe-usage', {})
 }
 
 export type UserRole = 'user' | 'admin'

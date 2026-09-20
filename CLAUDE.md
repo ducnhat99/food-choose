@@ -49,24 +49,30 @@ of external data:
      accumulates a real catalog of AI dishes over time instead of
      discarding every generation — see the `api/_lib/aiRecipe.ts` /
      `api/_lib/aiRecipeStore.ts` entries below for the full design.
-     **Capped at `DAILY_AI_LIMIT` (5) generated recipes per identity per UTC
-     day** for every non-admin caller, signed in or not — each AI-mode
-     generation costs real OpenAI usage, and unlike the provider-backed
-     catalog path there's no free tier to fall back on. See
-     `api/_lib/aiUsage.ts` / `api/_lib/auth.ts` below for how identity/role
-     is resolved and the limit enforced, and `src/components/AiLimitModal.tsx`
-     for the user-facing side.
+
+   **Every recipe fetch/generation is capped at `DAILY_RECIPE_LIMIT` (5) per
+   identity per UTC day, for every non-admin caller, signed in or not --
+   regardless of catalog or AI mode.** Initially this only covered AI mode
+   (which costs real OpenAI usage), but catalog mode isn't actually free
+   either -- Spoonacular's own free-tier quota is just as finite, and
+   `api/recommend-dish.ts`'s catalog path *also* calls OpenAI (the
+   tool-calling loop that grounds a pick in a real search result), so it was
+   never truly AI-free to begin with. One shared counter covers Suggest a
+   dish / Random dish / Search combined, either mode. See
+   `api/_lib/recipeUsage.ts` / `api/_lib/auth.ts` below for how identity/role
+   is resolved and the limit enforced, and `src/components/RecipeLimitModal.tsx`
+   for the user-facing side.
 2. **Supabase** (Postgres + Auth only, no Edge Functions) — accessed directly
    from the client via `supabase-js`, protected by Row Level Security (each
    user only sees their own `preferences`/`favorites`/`recipe_history` rows).
    `api/` also has its own server-only Supabase access
    (`api/_lib/supabaseAdmin.ts`, using the service role key, which bypasses
-   RLS) for the `ai_recipes`/`ai_usage` tables and the `profiles.role` lookup
-   above — every other read/write still goes through the browser's own
-   `supabase-js` client with the anon key and RLS.
+   RLS) for the `ai_recipes`/`recipe_usage` tables and the `profiles.role`
+   lookup above — every other read/write still goes through the browser's
+   own `supabase-js` client with the anon key and RLS.
 
 **User roles** (`profiles.role`, `'user'` default / `'admin'`) gate the
-DAILY_AI_LIMIT above and back an admin-only user management page
+DAILY_RECIPE_LIMIT above and back an admin-only user management page
 (`/admin`, `src/pages/AdminUsers.tsx`) where an admin can list every
 signed-up user and change their role. **`role` can only ever be changed
 through `api/admin-set-role.ts`** (which itself re-checks the caller is
@@ -163,12 +169,12 @@ src/lib/supabaseClient.ts   — supabase-js client (reads VITE_SUPABASE_URL / VI
 src/lib/api.ts              — thin wrappers calling api/*.ts via plain fetch('/api/...'); defines RecipeSource.
                                invoke() attaches the caller's current Supabase session as a Bearer
                                token on every request (api/_lib/auth.ts reads it, for the daily
-                               AI-generation limit) and throws ApiError (not a plain Error) on a
-                               non-ok response, carrying the raw backend `error` string as `.code` --
-                               isAiLimitError(err) checks that code for 'ai_limit_exceeded' so a
-                               caller can show AiLimitModal.tsx instead of an inline error string
+                               recipe limit) and throws ApiError (not a plain Error) on a non-ok
+                               response, carrying the raw backend `error` string as `.code` --
+                               isRecipeLimitError(err) checks that code for 'recipe_limit_exceeded'
+                               so a caller can show RecipeLimitModal.tsx instead of an inline error string
 src/lib/cuisines.ts         — CUISINES (verified TheMealDB areas) / CATEGORIES (TheMealDB's fixed category list) + VI label maps + findMatchingOption (case-insensitive match of free-text saved preferences against one of these lists), used by Search's filter and Home's form
-src/lib/support.ts          — SUPPORT_EMAIL, the single source of truth for the contact address shown (via src/components/ContactSupportLine.tsx) in AiUsageBanner.tsx and AiLimitModal.tsx
+src/lib/support.ts          — SUPPORT_EMAIL, the single source of truth for the contact address shown (via src/components/ContactSupportLine.tsx) in RecipeUsageBanner.tsx and RecipeLimitModal.tsx
 src/hooks/                  — React Query hooks per concern (useRecipes, useFavorites, usePreferences, useRecommendDish); useTranslatedTexts is only for Favorites' saved titles.
                                useIsAdmin reads profiles.role directly via the anon-key client (the
                                existing "view own profile" RLS policy already permits exactly this --
@@ -182,14 +188,16 @@ src/context/LanguageContext.tsx — EN/VI toggle state (persisted to localStorag
 src/context/RecipeModeContext.tsx — 'catalog'/'ai' toggle state (persisted to localStorage), mirrors LanguageContext exactly. Home/Search read useRecipeMode() and pass `useAi: mode === 'ai'` through to the relevant api/lib/api.ts calls
 src/i18n/translations.ts    — { key: { en, vi } } dictionary for static UI text (nav, labels, buttons, errors)
 src/components/Layout.tsx        — nav shell (React Router <Outlet />) + language toggle button + recipe-source (catalog/AI) toggle button, same sliding-segmented-pill style in the mobile drawer for both.
-                                    Renders <AiUsageBanner /> right below the header, on every page
-src/components/AiUsageBanner.tsx — a full-width strip below the header (not tucked into the toggle
+                                    Renders <RecipeUsageBanner /> right below the header, on every page
+src/components/RecipeUsageBanner.tsx — a full-width strip below the header (not tucked into the toggle
                                     itself, so it's hard to miss on any page) showing a non-admin
-                                    caller their remaining daily AI-generation quota (useAiUsage) plus
-                                    a <ContactSupportLine />. Only rendered in AI mode, for a caller
-                                    api/ai-usage.ts reports isAdmin: false for -- null otherwise, so it
-                                    collapses to nothing in catalog mode or for the admin account
-src/components/ContactSupportLine.tsx — renders ai.contactMessage ("Contact {email} for more
+                                    caller their remaining daily recipe quota (useRecipeUsage) plus a
+                                    <ContactSupportLine />. Shown regardless of catalog/AI mode -- both
+                                    cost real resources, see the "recipe fetch/generation" limit note
+                                    near the top of this file -- for a caller api/recipe-usage.ts
+                                    reports isAdmin: false for; null otherwise, so it collapses to
+                                    nothing for the admin account
+src/components/ContactSupportLine.tsx — renders usage.contactMessage ("Contact {email} for more
                                     support.") with SUPPORT_EMAIL (src/lib/support.ts) as a real
                                     mailto: link in place of its `{email}` placeholder -- split the
                                     translated string on that placeholder rather than appending the
@@ -197,7 +205,7 @@ src/components/ContactSupportLine.tsx — renders ai.contactMessage ("Contact {e
                                     mid-sentence, in both languages. `linkClassName` lets each caller
                                     match its own surrounding colors (amber for the banner, teal for
                                     the modal) without duplicating the split logic. Shared by
-                                    AiUsageBanner.tsx and AiLimitModal.tsx
+                                    RecipeUsageBanner.tsx and RecipeLimitModal.tsx
 src/components/ProtectedRoute.tsx — redirects to /login if unauthenticated
 src/components/AdminRoute.tsx — like ProtectedRoute, but also requires useIsAdmin() to be true,
                                     redirecting a signed-in non-admin to / instead of exposing the
@@ -205,14 +213,16 @@ src/components/AdminRoute.tsx — like ProtectedRoute, but also requires useIsAd
                                     server-side regardless via admin-users.ts/admin-set-role.ts -- this
                                     is just for not showing a page someone can't use, not the real
                                     security boundary)
-src/components/AiLimitModal.tsx — shown by Home.tsx (Suggest a dish + Random dish) and Search.tsx
-                                    when api.ts's isAiLimitError(err) is true, instead of the usual
+src/components/RecipeLimitModal.tsx — shown by Home.tsx (Suggest a dish + Random dish) and Search.tsx
+                                    when api.ts's isRecipeLimitError(err) is true, instead of the usual
                                     inline error text -- a plain "request failed" string would read as
                                     broken to a non-admin caller, when this is an intentional daily
-                                    cost-control limit (see _lib/aiUsage.ts) that resets tomorrow and
-                                    has an immediate workaround (switch to API/catalog mode). Also
-                                    renders <ContactSupportLine />, same as AiUsageBanner.tsx, for
-                                    someone who specifically wants a higher limit
+                                    cost-control limit (see _lib/recipeUsage.ts) that resets tomorrow.
+                                    Was named AiLimitModal.tsx and said "switch to API mode" as a
+                                    workaround until catalog mode was also brought under the same
+                                    limit -- see the note near the top of this file. Also renders
+                                    <ContactSupportLine />, same as RecipeUsageBanner.tsx, for someone
+                                    who specifically wants a higher limit
 src/components/RandomRevealModal.tsx — the "Feeling lucky?" pack-opening reveal. Its photo circle
                                         reads `recipe.image || recipe.images[0] || '/logo.png'`, not
                                         `recipe.image` alone -- `image` (the provider's own "real
@@ -508,6 +518,10 @@ api/
                                both together, that combined-filter capability is the main reason
                                Spoonacular is tried first); translates the query EN->VI first and
                                result titles back after, regardless of which provider answered.
+                               Checks/records the daily recipe limit (_lib/recipeUsage.ts) up front,
+                               before either the AI or catalog path -- AI mode counts
+                               AI_SEARCH_RESULT_COUNT, catalog mode counts 1 per search regardless of
+                               how many existing results it returns.
                                `useAi: true` skips both providers entirely: _lib/aiRecipe.ts's
                                generateAiRecipes invents AI_SEARCH_RESULT_COUNT (6) meaningfully
                                different dishes in one call, each persisted via saveAiRecipe and
@@ -526,7 +540,9 @@ api/
                                doesn't exist
   random.ts                 — a random dish, optionally scoped to a cuisine: tries
                                spoonacularRandom, falls back to mealdbRandom, then the same
-                               finalizeRecipe as recipe.ts. The frontend pre-fills RecipeDetail's
+                               finalizeRecipe as recipe.ts. Checks/records the daily recipe limit
+                               (_lib/recipeUsage.ts) up front, regardless of catalog/AI mode -- 1 per
+                               call either way. The frontend pre-fills RecipeDetail's
                                React Query cache with this response (useRandomRecipe.ts) and
                                navigates straight to /recipe/:source/:id, so there's no second
                                fetch or loading flash. `useAi: true` calls _lib/aiRecipe.ts's
@@ -548,7 +564,11 @@ api/
                                see below) and recommend-dish.ts is grounded by the user's own
                                ingredients/mood/constraints rather than a bare cuisine, so it's far
                                less prone to this kind of clustering
-  recommend-dish.ts         — the AI recommendation feature. `useAi: true` takes a completely
+  recommend-dish.ts         — the AI recommendation feature. Checks/records the daily recipe limit
+                               (_lib/recipeUsage.ts) up front, regardless of catalog/AI mode -- the
+                               non-AI path below calls OpenAI too (the tool-calling loop), so it was
+                               never actually free of AI cost to begin with, on top of Spoonacular's
+                               own quota. `useAi: true` takes a completely
                                different, much simpler path: one _lib/aiRecipe.ts generateAiRecipe
                                call (which also returns its own `reasoning`), persisted via
                                saveAiRecipe, returned as {recipeId, reasoning, title, source: 'ai'}
@@ -619,37 +639,56 @@ api/
                                a serverless function has no other durable identity for a logged-out
                                visitor (imprecise for shared IPs, an accepted tradeoff for a
                                cost-control limit with no account to key off of)
-  _lib/aiUsage.ts           — DAILY_AI_LIMIT (5) / recordAndCheckAiUsage(identity, count?): the
-                               limit itself. Calls the increment_ai_usage Postgres function (see its
-                               migration) to atomically record `count` more generated recipes for
-                               `identity` today (UTC) and get back the new running total in one
-                               round trip -- a select-then-upsert from here would race under
-                               concurrent requests. `count` is >1 only for api/search.ts's AI mode
-                               (AI_SEARCH_RESULT_COUNT recipes generated per call, each counts).
-                               Fails OPEN (allowed: true) on any error/missing config -- losing the
-                               ability to enforce a cost limit is far safer than incorrectly locking
-                               out every AI-mode request over an infra hiccup. random.ts/
-                               recommend-dish.ts/search.ts each call resolveCaller then, if not
-                               admin, this -- before generating anything, returning
-                               `{ error: 'ai_limit_exceeded' }` with HTTP 429 if over. api.ts's
-                               isAiLimitError(err) recognizes this specific code so the frontend can
-                               show AiLimitModal.tsx (a friendly "come back tomorrow, or switch to
-                               API mode" message) instead of a generic inline error string.
-                               getAiUsage(identity) is the read-only counterpart -- a plain SELECT for
-                               today's row (no RPC, nothing to increment), for api/ai-usage.ts to
-                               report a caller's remaining quota *before* they hit the limit
-  ai-usage.ts               — read-only usage check for the caller (resolveCaller + getAiUsage above)
-                               -- `{ isAdmin, limit, remaining }`, never increments anything. Backs
-                               src/hooks/useAiUsage.ts, which src/components/AiUsageBanner.tsx uses to
-                               show a non-admin caller how many AI-generated recipes they have left
-                               today (plus a contact-for-more-limit line, src/lib/support.ts) -- hidden
-                               entirely once `isAdmin` comes back true. useRandomRecipe.ts/
-                               useRecommendDish.ts/Search.tsx each invalidate this hook's query key
-                               prefix (AI_USAGE_QUERY_KEY) after a successful AI-mode generation, so
-                               the displayed count drops immediately rather than waiting out its 30s
-                               staleTime. useAiUsage.ts's actual query key is
-                               `[...AI_USAGE_QUERY_KEY, user?.id ?? 'anon']`, not the bare constant --
-                               without the user-id suffix, logging in right after browsing
+  _lib/recipeUsage.ts       — DAILY_RECIPE_LIMIT (5) / recordAndCheckRecipeUsage(identity, count?):
+                               the limit itself, applying regardless of catalog/AI mode (originally
+                               AI-only; see the note near the top of this file for why it was widened
+                               and renamed from aiUsage.ts/ai_usage/DAILY_AI_LIMIT -- "AI usage" would
+                               be actively misleading once it also counts real Spoonacular/TheMealDB
+                               fetches). Calls the increment_recipe_usage Postgres function (see its
+                               migration) to atomically record `count` more recipes for `identity`
+                               today (UTC) and get back the new running total in one round trip -- a
+                               select-then-upsert from here would race under concurrent requests.
+                               `count` is >1 only for api/search.ts's AI mode (AI_SEARCH_RESULT_COUNT
+                               recipes generated per call, each counts) -- every other caller
+                               (random.ts, recommend-dish.ts, search.ts's catalog mode) uses the
+                               default of 1. Fails OPEN (allowed: true) on any error/missing config --
+                               losing the ability to enforce a cost limit is far safer than
+                               incorrectly locking out every request over an infra hiccup. random.ts/
+                               recommend-dish.ts/search.ts each call resolveCaller then, if not admin,
+                               this -- before doing any real work, returning
+                               `{ error: 'recipe_limit_exceeded' }` with HTTP 429 if over. api.ts's
+                               isRecipeLimitError(err) recognizes this specific code so the frontend
+                               can show RecipeLimitModal.tsx instead of a generic inline error string.
+                               getRecipeUsage(identity) is the read-only counterpart -- a plain SELECT
+                               for today's row (no RPC, nothing to increment), for api/recipe-usage.ts
+                               to report a caller's remaining quota *before* they hit the limit.
+                               **Gotcha, confirmed live**: renaming the `ai_usage` table with `ALTER
+                               TABLE ... RENAME TO recipe_usage` and the function with `ALTER FUNCTION
+                               ... RENAME` did NOT update the table name INSIDE the function's own SQL
+                               body -- a `language sql` function's body is stored as plain text, not
+                               rewritten when a table it references is renamed (unlike a view, which
+                               Postgres does track). The function silently started failing every call
+                               with `relation "public.ai_usage" does not exist`, which
+                               recordAndCheckRecipeUsage's fail-open design swallowed completely: every
+                               request succeeded and NOTHING was ever recorded, so the bug was
+                               invisible until directly testing the RPC in isolation. Fixed with a
+                               `create or replace function` migration using the corrected body. Any
+                               future rename of a table a `language sql`/`plpgsql` function body
+                               references by name needs an explicit `create or replace` of that
+                               function too -- a bare `alter table ... rename` is not enough.
+  recipe-usage.ts           — read-only usage check for the caller (resolveCaller + getRecipeUsage
+                               above) -- `{ isAdmin, limit, remaining }`, never increments anything.
+                               Backs src/hooks/useRecipeUsage.ts, which
+                               src/components/RecipeUsageBanner.tsx uses to show a non-admin caller
+                               how many recipes they have left today (plus a contact-for-more-limit
+                               line, src/lib/support.ts) -- hidden entirely once `isAdmin` comes back
+                               true. useRandomRecipe.ts/useRecommendDish.ts/Search.tsx each invalidate
+                               this hook's query key prefix (RECIPE_USAGE_QUERY_KEY) after a
+                               successful fetch/generation (catalog or AI), so the displayed count
+                               drops immediately rather than waiting out its 30s staleTime.
+                               useRecipeUsage.ts's actual query key is
+                               `[...RECIPE_USAGE_QUERY_KEY, user?.id ?? 'anon']`, not the bare
+                               constant -- without the user-id suffix, logging in right after browsing
                                anonymously kept showing the anonymous result (confirmed live: an admin
                                who'd just signed in still saw "4/5 left", since nothing about login
                                itself triggers a refetch of an unscoped query key that already has
@@ -722,7 +761,7 @@ api/
                                to converge on the same "obvious" answer for an under-specified
                                prompt even before any avoidTitles history exists
 
-supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and ai_usage, RLS enabled with zero policies like ai_recipes, both for the daily AI-generation limit, see _lib/auth.ts / _lib/aiUsage.ts above; the two 20260922*.sql migrations lock down profiles.role at the Postgres privilege level -- see the "User roles" section above for why it took two attempts and what the correct pattern is for any future admin/server-only column)
+supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and recipe_usage (originally ai_usage, renamed -- see _lib/recipeUsage.ts's entry above for why, and for a real gotcha hit doing the rename: a table/function rename alone does NOT rewrite the OLD name baked into a `language sql` function's own body text), RLS enabled with zero policies like ai_recipes, both for the daily recipe limit, see _lib/auth.ts / _lib/recipeUsage.ts above; the two 20260922*.sql migrations lock down profiles.role at the Postgres privilege level -- see the "User roles" section above for why it took two attempts and what the correct pattern is for any future admin/server-only column)
 ```
 
 Recipe *content* is English-only in both providers; the Vietnamese translation

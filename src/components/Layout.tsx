@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { AiUsageBanner } from './AiUsageBanner'
+import { RecipeUsageBanner } from './RecipeUsageBanner'
 import { BackgroundDecoration } from './BackgroundDecoration'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -128,7 +128,7 @@ export function Layout() {
         </nav>
       </header>
 
-      <AiUsageBanner />
+      <RecipeUsageBanner />
 
       {/* Mobile nav drawer. Always mounted (rather than conditionally
           rendered) so the open/close transform can animate; sm:hidden keeps

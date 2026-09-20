@@ -2,15 +2,15 @@ import type { VercelRequest } from '@vercel/node'
 import { supabaseAdmin } from './supabaseAdmin.js'
 
 export interface CallerContext {
-  /** `user:<uuid>` for a signed-in caller, `ip:<address>` otherwise -- the key api/_lib/aiUsage.ts tracks daily usage under. */
+  /** `user:<uuid>` for a signed-in caller, `ip:<address>` otherwise -- the key api/_lib/recipeUsage.ts tracks daily usage under. */
   identity: string
-  /** True only for a signed-in caller whose profiles.role is 'admin' -- exempt from the daily AI-generation limit entirely. */
+  /** True only for a signed-in caller whose profiles.role is 'admin' -- exempt from the daily recipe limit entirely. */
   isAdmin: boolean
 }
 
 /**
- * Resolves who's calling an api/*.ts endpoint, for the daily AI-generation
- * limit (api/_lib/aiUsage.ts). A signed-in caller is identified by verifying
+ * Resolves who's calling an api/*.ts endpoint, for the daily recipe limit
+ * (api/_lib/recipeUsage.ts). A signed-in caller is identified by verifying
  * the bearer token their browser sends (src/lib/api.ts's invoke attaches the
  * current Supabase session's access token on every request); an anonymous
  * caller falls back to their IP address, since a serverless function has no

@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { generateAiRecipes } from './_lib/aiRecipe.js'
 import { saveAiRecipe } from './_lib/aiRecipeStore.js'
-import { DAILY_AI_LIMIT, recordAndCheckAiUsage } from './_lib/aiUsage.js'
 import { resolveCaller } from './_lib/auth.js'
 import { searchDishImages } from './_lib/images.js'
 import { mealdbSearch } from './_lib/mealdb.js'
+import { DAILY_RECIPE_LIMIT, recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
 import { simplifyDishNameForImageSearch } from './_lib/simplifyDishName.js'
 import { spoonacularSearch } from './_lib/spoonacular.js'
 import { translateToEnglish, translateToVietnamese } from './_lib/translate.js'
@@ -21,6 +21,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'query or cuisine is required' })
   }
 
+  // Applies to catalog mode too, not just AI -- both cost real resources
+  // (OpenAI usage for AI mode, Spoonacular's own limited free-tier quota
+  // for catalog mode). AI mode counts as AI_SEARCH_RESULT_COUNT toward the
+  // limit, not 1 -- one search call generates that many distinct recipes in
+  // a single OpenAI request, and the limit is meant to track actual
+  // generated recipes/cost, not request count. Catalog mode's one search
+  // call counts as 1 regardless of how many existing results it returns --
+  // no per-result cost is incurred fetching an already-existing catalog
+  // recipe, unlike an AI generation. Checked (and recorded) before doing
+  // any real work, so a caller without enough left today is blocked here
+  // rather than after already paying for the call.
+  const caller = await resolveCaller(req)
+  if (!caller.isAdmin) {
+    const usage = await recordAndCheckRecipeUsage(caller.identity, useAi ? AI_SEARCH_RESULT_COUNT : 1)
+    if (!usage.allowed) {
+      return res.status(429).json({ error: 'recipe_limit_exceeded', limit: DAILY_RECIPE_LIMIT })
+    }
+  }
+
   let englishQuery = hasQuery ? query : undefined
   if (hasQuery && language === 'vi') {
     const [translated] = await translateToEnglish([query])
@@ -28,20 +47,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (useAi) {
-    const caller = await resolveCaller(req)
-    if (!caller.isAdmin) {
-      // Counts as AI_SEARCH_RESULT_COUNT toward the limit, not 1 -- one
-      // search call generates that many distinct recipes in a single
-      // OpenAI request, and the limit is meant to track actual generated
-      // recipes/cost, not request count. Checked (and recorded) before
-      // generating, so a caller with fewer than that many left today is
-      // blocked here rather than after already paying for the call.
-      const usage = await recordAndCheckAiUsage(caller.identity, AI_SEARCH_RESULT_COUNT)
-      if (!usage.allowed) {
-        return res.status(429).json({ error: 'ai_limit_exceeded', limit: DAILY_AI_LIMIT })
-      }
-    }
-
     // Always generates fresh (no fuzzy-match against previously-saved
     // ai_recipes rows) -- reusing past generations for a similar query is a
     // reasonable future enhancement, not attempted here.

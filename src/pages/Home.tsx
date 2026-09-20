@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AiLimitModal } from '../components/AiLimitModal'
+import { RecipeLimitModal } from '../components/RecipeLimitModal'
 import { LoadingModal } from '../components/LoadingModal'
 import { RandomRevealModal } from '../components/RandomRevealModal'
 import { useLanguage } from '../context/LanguageContext'
@@ -9,7 +9,7 @@ import { usePreferences } from '../hooks/usePreferences'
 import { useRandomRecipe } from '../hooks/useRandomRecipe'
 import { useRecommendDish } from '../hooks/useRecommendDish'
 import { CATEGORIES, CATEGORY_LABELS_VI, CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
-import { isAiLimitError, type RecipeDetail } from '../lib/api'
+import { isRecipeLimitError, type RecipeDetail } from '../lib/api'
 import { selectArrowStyle } from '../lib/selectStyle'
 
 // Remembers the last cuisine the user picked for Random dish, for the
@@ -75,7 +75,7 @@ function RandomDish() {
       {
         onSuccess: (recipe) => setRevealRecipe(recipe),
         onError: (err) => {
-          if (isAiLimitError(err)) {
+          if (isRecipeLimitError(err)) {
             setShowModal(false)
             setShowLimitModal(true)
           }
@@ -97,7 +97,7 @@ function RandomDish() {
           onClose={() => setShowModal(false)}
         />
       )}
-      {showLimitModal && <AiLimitModal onClose={() => setShowLimitModal(false)} />}
+      {showLimitModal && <RecipeLimitModal onClose={() => setShowLimitModal(false)} />}
       <div>
         <h2 className="text-lg font-semibold text-neutral-900">{t('home.randomTitle')}</h2>
         <p className="mt-1 text-neutral-600">{t('home.randomSubtitle')}</p>
@@ -125,7 +125,7 @@ function RandomDish() {
           {t('home.randomButton')}
         </button>
       </div>
-      {error && !isAiLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
+      {error && !isRecipeLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
     </div>
   )
 }
@@ -174,7 +174,7 @@ export function Home() {
       },
       {
         onError: (err) => {
-          if (isAiLimitError(err)) setShowLimitModal(true)
+          if (isRecipeLimitError(err)) setShowLimitModal(true)
         },
       },
     )
@@ -183,7 +183,7 @@ export function Home() {
   return (
     <div className="space-y-6">
       {isPending && <LoadingModal message={t('home.submitting')} />}
-      {showLimitModal && <AiLimitModal onClose={() => setShowLimitModal(false)} />}
+      {showLimitModal && <RecipeLimitModal onClose={() => setShowLimitModal(false)} />}
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">{t('home.title')}</h1>
         <p className="mt-1 text-neutral-600">{t('home.subtitle')}</p>
@@ -288,7 +288,7 @@ export function Home() {
         </button>
       </form>
 
-      {error && !isAiLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
+      {error && !isRecipeLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
 
       {data && (
         <div className="rounded-lg border border-neutral-200 bg-white p-6">

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { generateAiRecipe } from './_lib/aiRecipe.js'
 import { saveAiRecipe } from './_lib/aiRecipeStore.js'
-import { DAILY_AI_LIMIT, recordAndCheckAiUsage } from './_lib/aiUsage.js'
 import { resolveCaller } from './_lib/auth.js'
 import { mealdbSearch, type RecipeSummary } from './_lib/mealdb.js'
+import { DAILY_RECIPE_LIMIT, recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
 import { spoonacularSearch } from './_lib/spoonacular.js'
 import { translateToVietnamese } from './_lib/translate.js'
 
@@ -181,15 +181,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const request = (req.body ?? {}) as RecommendRequest
 
-  if (request.useAi) {
-    const caller = await resolveCaller(req)
-    if (!caller.isAdmin) {
-      const usage = await recordAndCheckAiUsage(caller.identity)
-      if (!usage.allowed) {
-        return res.status(429).json({ error: 'ai_limit_exceeded', limit: DAILY_AI_LIMIT })
-      }
+  // Applies to catalog mode too, not just AI -- the catalog path below also
+  // calls OpenAI (the tool-calling loop that grounds a pick in a real
+  // search result), so it's never actually free of AI cost either, on top
+  // of Spoonacular's own limited free-tier quota.
+  const caller = await resolveCaller(req)
+  if (!caller.isAdmin) {
+    const usage = await recordAndCheckRecipeUsage(caller.identity)
+    if (!usage.allowed) {
+      return res.status(429).json({ error: 'recipe_limit_exceeded', limit: DAILY_RECIPE_LIMIT })
     }
+  }
 
+  if (request.useAi) {
     // AI mode invents a dish from scratch instead of grounding the pick in
     // a real search result -- the whole point of the tool-calling loop
     // below (search_recipes before recommend_dish) is to avoid hallucinating

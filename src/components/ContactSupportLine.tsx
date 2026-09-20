@@ -6,14 +6,15 @@ interface ContactSupportLineProps {
 }
 
 /**
- * Renders ai.contactMessage ("Contact {email} for more support.") with
+ * Renders usage.contactMessage ("Contact {email} for more support.") with
  * SUPPORT_EMAIL as a real mailto: link in place of its {email} placeholder,
  * rather than a plain string -- split on the placeholder so the email can
- * sit inline, mid-sentence. Shared by AiUsageBanner.tsx and AiLimitModal.tsx.
+ * sit inline, mid-sentence. Shared by RecipeUsageBanner.tsx and
+ * RecipeLimitModal.tsx.
  */
 export function ContactSupportLine({ linkClassName = 'font-medium underline' }: ContactSupportLineProps) {
   const { t } = useLanguage()
-  const [before, after] = t('ai.contactMessage').split('{email}')
+  const [before, after] = t('usage.contactMessage').split('{email}')
 
   return (
     <>
