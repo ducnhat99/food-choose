@@ -357,7 +357,19 @@ api/
                                of how it was fetched (by id, or a random pick) -- attaches
                                _lib/images.ts stock photos, fills in a video guide via
                                _lib/youtube.ts (only when the recipe has no native one already --
-                               see below), and translates to Vietnamese when requested. title/
+                               see below), and translates to Vietnamese when requested.
+                               The resolved videoUrls are checked against/written to
+                               _lib/videoCache.ts (keyed by source+id) BEFORE any YouTube search
+                               happens -- without this, every view re-ran the search from scratch,
+                               and YouTube's search.list ranking isn't guaranteed stable across
+                               separate calls, so the same recipe could show a different "best match"
+                               video on a later visit (confirmed as the cause of a "different video
+                               every time I reopen this recipe" report; verified live afterward: two
+                               fetches of the same recipe now return byte-identical videoUrls, and
+                               the second fetch makes zero YouTube API calls). A cached *empty* array
+                               is a valid, meaningful result too (no good video was found last time)
+                               -- distinguished from "never resolved" (null) so a genuinely
+                               video-less recipe also stops being re-searched on every view. title/
                                category/area, instructions, and the ingredients batch are three
                                separate translateToVietnamese calls (not one combined ~20-30-item
                                batch) so each is smaller and less likely to come back malformed,
@@ -488,6 +500,20 @@ api/
                                recipe.title directly (falling back to the generic translation only
                                when dish-name resolution itself failed) instead of always using the
                                generic translation's own result for the title
+  _lib/videoCache.ts        — getCachedVideoUrls/setCachedVideoUrls: persists finalize.ts's final
+                               resolved videoUrls per (source, recipe_id) in the recipe_video_cache
+                               table, so a repeat view of the same recipe reuses it instead of
+                               re-running the YouTube search above -- YouTube's search.list ranking
+                               isn't guaranteed stable across separate calls, so without this the same
+                               recipe could show a different "best match" video on a later visit
+                               (confirmed as a real report, and confirmed fixed live: two fetches of
+                               the same recipe now return identical videoUrls, with zero YouTube API
+                               calls on the second). getCachedVideoUrls returns null for "never
+                               resolved" specifically so a legitimately empty result (no good video
+                               found) can still be cached and distinguished from that -- an empty
+                               array is a valid, meaningful cached value, not a miss. Fails
+                               silently/returns null on any Supabase error, same "never worth failing
+                               the request over" philosophy as every other best-effort helper here
   _lib/images.ts            — searchDishImages: extra stock photos for RecipeDetail's slideshow,
                                sourced from Wikimedia Commons (no API key needed at all). Neither
                                recipe provider has more than one real photo per dish, so this is a
@@ -761,7 +787,7 @@ api/
                                to converge on the same "obvious" answer for an under-specified
                                prompt even before any avoidTitles history exists
 
-supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and recipe_usage (originally ai_usage, renamed -- see _lib/recipeUsage.ts's entry above for why, and for a real gotcha hit doing the rename: a table/function rename alone does NOT rewrite the OLD name baked into a `language sql` function's own body text), RLS enabled with zero policies like ai_recipes, both for the daily recipe limit, see _lib/auth.ts / _lib/recipeUsage.ts above; the two 20260922*.sql migrations lock down profiles.role at the Postgres privilege level -- see the "User roles" section above for why it took two attempts and what the correct pattern is for any future admin/server-only column)
+supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and recipe_usage (originally ai_usage, renamed -- see _lib/recipeUsage.ts's entry above for why, and for a real gotcha hit doing the rename: a table/function rename alone does NOT rewrite the OLD name baked into a `language sql` function's own body text), RLS enabled with zero policies like ai_recipes, both for the daily recipe limit, see _lib/auth.ts / _lib/recipeUsage.ts above; the two 20260922*.sql migrations lock down profiles.role at the Postgres privilege level -- see the "User roles" section above for why it took two attempts and what the correct pattern is for any future admin/server-only column; recipe_video_cache is RLS enabled with zero policies like ai_recipes, keyed by (source, recipe_id), for _lib/videoCache.ts above -- keeps a recipe's video guide stable across repeat views instead of a fresh YouTube search possibly returning a different result each time)
 ```
 
 Recipe *content* is English-only in both providers; the Vietnamese translation

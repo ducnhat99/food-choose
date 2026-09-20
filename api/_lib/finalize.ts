@@ -3,6 +3,7 @@ import { translateIngredientName, translateMeasure } from './glossary.js'
 import { searchDishImages } from './images.js'
 import { simplifyDishNameForImageSearch } from './simplifyDishName.js'
 import { translateIngredientPhrases, translateToVietnamese } from './translate.js'
+import { getCachedVideoUrls, setCachedVideoUrls } from './videoCache.js'
 import { resolveVietnameseDishName } from './vietnameseDishName.js'
 import { extractYoutubeVideoId, searchYoutubeVideo } from './youtube.js'
 
@@ -79,7 +80,18 @@ export async function finalizeRecipe(
     )
   }
 
-  if (isVietnameseCuisine || nativeVideoUrls.length === 0) {
+  // Reused across every future view of this same (source, id) once set --
+  // without this, a fresh YouTube search below could return a different
+  // "best match" on a later visit (confirmed as the cause of a "different
+  // video every time I reopen this recipe" report), and even the
+  // native-video-only path isn't re-searched pointlessly forever after the
+  // first cache write. null means "never resolved before"; a resolved-but-
+  // empty array is still a valid cached result (no good video exists).
+  const cachedVideoUrls = await getCachedVideoUrls(recipe.source, recipe.id)
+
+  if (cachedVideoUrls !== null) {
+    recipe.videoUrls = cachedVideoUrls
+  } else if (isVietnameseCuisine || nativeVideoUrls.length === 0) {
     // Search with a Vietnamese-language query regardless of the page's own
     // display language -- confirmed live that this reliably surfaces
     // videos from real Vietnamese channels (vs. English-language results
@@ -122,6 +134,18 @@ export async function finalizeRecipe(
       // so a search result (if any) is simply the one and only video.
       recipe.videoUrls = searchedVideoUrl ? [searchedVideoUrl] : nativeVideoUrls
     }
+
+    // Freezes this result for every future view -- including the
+    // native-video-only case below, which never reaches this branch at
+    // all (nothing to search for), so it's cached separately instead.
+    await setCachedVideoUrls(recipe.source, recipe.id, recipe.videoUrls)
+  } else {
+    // Reached only when cachedVideoUrls is null AND this is non-Vietnamese
+    // with a native video already (TheMealDB's strYoutube) -- recipe.videoUrls
+    // is already correct as-is (untouched from the provider fetch), just
+    // needs freezing so this exact value keeps showing even if the
+    // provider's own data changes later.
+    await setCachedVideoUrls(recipe.source, recipe.id, recipe.videoUrls)
   }
 
   if (language === 'vi') {
