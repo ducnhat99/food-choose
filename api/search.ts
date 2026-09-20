@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { generateAiRecipes } from './_lib/aiRecipe.js'
 import { saveAiRecipe } from './_lib/aiRecipeStore.js'
+import { DAILY_AI_LIMIT, recordAndCheckAiUsage } from './_lib/aiUsage.js'
+import { resolveCaller } from './_lib/auth.js'
 import { searchDishImages } from './_lib/images.js'
 import { mealdbSearch } from './_lib/mealdb.js'
 import { simplifyDishNameForImageSearch } from './_lib/simplifyDishName.js'
@@ -26,6 +28,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (useAi) {
+    const caller = await resolveCaller(req)
+    if (!caller.isAdmin) {
+      // Counts as AI_SEARCH_RESULT_COUNT toward the limit, not 1 -- one
+      // search call generates that many distinct recipes in a single
+      // OpenAI request, and the limit is meant to track actual generated
+      // recipes/cost, not request count. Checked (and recorded) before
+      // generating, so a caller with fewer than that many left today is
+      // blocked here rather than after already paying for the call.
+      const usage = await recordAndCheckAiUsage(caller.identity, AI_SEARCH_RESULT_COUNT)
+      if (!usage.allowed) {
+        return res.status(429).json({ error: 'ai_limit_exceeded', limit: DAILY_AI_LIMIT })
+      }
+    }
+
     // Always generates fresh (no fuzzy-match against previously-saved
     // ai_recipes rows) -- reusing past generations for a similar query is a
     // reasonable future enhancement, not attempted here.

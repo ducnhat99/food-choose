@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AiLimitModal } from '../components/AiLimitModal'
 import { LoadingModal } from '../components/LoadingModal'
 import { RandomRevealModal } from '../components/RandomRevealModal'
 import { useLanguage } from '../context/LanguageContext'
@@ -8,8 +9,8 @@ import { usePreferences } from '../hooks/usePreferences'
 import { useRandomRecipe } from '../hooks/useRandomRecipe'
 import { useRecommendDish } from '../hooks/useRecommendDish'
 import { CATEGORIES, CATEGORY_LABELS_VI, CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
+import { isAiLimitError, type RecipeDetail } from '../lib/api'
 import { selectArrowStyle } from '../lib/selectStyle'
-import type { RecipeDetail } from '../lib/api'
 
 // Remembers the last cuisine the user picked for Random dish, for the
 // duration of the browser tab -- without this, picking e.g. "Italian",
@@ -46,6 +47,7 @@ function RandomDish() {
   const [cuisine, setCuisine] = useState(() => readStoredRandomCuisine() ?? '')
   const [revealRecipe, setRevealRecipe] = useState<RecipeDetail | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const { mutate, isPending, error } = useRandomRecipe()
 
   useEffect(() => {
@@ -70,7 +72,15 @@ function RandomDish() {
     setShowModal(true)
     mutate(
       { cuisine: cuisine || undefined, language, useAi: mode === 'ai' },
-      { onSuccess: (recipe) => setRevealRecipe(recipe) },
+      {
+        onSuccess: (recipe) => setRevealRecipe(recipe),
+        onError: (err) => {
+          if (isAiLimitError(err)) {
+            setShowModal(false)
+            setShowLimitModal(true)
+          }
+        },
+      },
     )
   }
 
@@ -87,6 +97,7 @@ function RandomDish() {
           onClose={() => setShowModal(false)}
         />
       )}
+      {showLimitModal && <AiLimitModal onClose={() => setShowLimitModal(false)} />}
       <div>
         <h2 className="text-lg font-semibold text-neutral-900">{t('home.randomTitle')}</h2>
         <p className="mt-1 text-neutral-600">{t('home.randomSubtitle')}</p>
@@ -114,7 +125,7 @@ function RandomDish() {
           {t('home.randomButton')}
         </button>
       </div>
-      {error && <p className="text-sm text-red-600">{(error as Error).message}</p>}
+      {error && !isAiLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
     </div>
   )
 }
@@ -129,6 +140,7 @@ export function Home() {
   const [cuisine, setCuisine] = useState('')
   const [category, setCategory] = useState('')
   const [applyPreferences, setApplyPreferences] = useState(true)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const { mutate, data, isPending, error } = useRecommendDish()
 
   useEffect(() => {
@@ -145,25 +157,33 @@ export function Home() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    mutate({
-      ingredients: ingredients
-        .split(',')
-        .map((i) => i.trim())
-        .filter(Boolean),
-      mood: mood || undefined,
-      timeAvailable: timeAvailable ? Number(timeAvailable) : undefined,
-      cuisine: cuisine || undefined,
-      category: category || undefined,
-      dietaryRestrictions: applyPreferences ? preferences?.dietary_restrictions : undefined,
-      dislikedIngredients: applyPreferences ? preferences?.disliked_ingredients : undefined,
-      language,
-      useAi: mode === 'ai',
-    })
+    mutate(
+      {
+        ingredients: ingredients
+          .split(',')
+          .map((i) => i.trim())
+          .filter(Boolean),
+        mood: mood || undefined,
+        timeAvailable: timeAvailable ? Number(timeAvailable) : undefined,
+        cuisine: cuisine || undefined,
+        category: category || undefined,
+        dietaryRestrictions: applyPreferences ? preferences?.dietary_restrictions : undefined,
+        dislikedIngredients: applyPreferences ? preferences?.disliked_ingredients : undefined,
+        language,
+        useAi: mode === 'ai',
+      },
+      {
+        onError: (err) => {
+          if (isAiLimitError(err)) setShowLimitModal(true)
+        },
+      },
+    )
   }
 
   return (
     <div className="space-y-6">
       {isPending && <LoadingModal message={t('home.submitting')} />}
+      {showLimitModal && <AiLimitModal onClose={() => setShowLimitModal(false)} />}
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">{t('home.title')}</h1>
         <p className="mt-1 text-neutral-600">{t('home.subtitle')}</p>
@@ -268,7 +288,7 @@ export function Home() {
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600">{(error as Error).message}</p>}
+      {error && !isAiLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
 
       {data && (
         <div className="rounded-lg border border-neutral-200 bg-white p-6">

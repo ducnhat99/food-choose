@@ -1,4 +1,5 @@
 import type { Language } from '../i18n/translations'
+import { supabase } from './supabaseClient'
 
 export type RecipeSource = 'spoonacular' | 'mealdb' | 'ai'
 
@@ -46,14 +47,45 @@ export interface RecommendDishResponse {
   source: RecipeSource
 }
 
+/**
+ * Thrown by invoke() for a non-ok response. Carries the raw `error` field
+ * from the response body as `code`, separate from `message` (usually the
+ * same string) -- so callers that care about a *specific* backend error
+ * (currently just 'ai_limit_exceeded', see isAiLimitError below) can check
+ * for it without string-matching the human-readable message.
+ */
+export class ApiError extends Error {
+  code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.code = code
+  }
+}
+
+/** True for the daily AI-generation limit error (api/_lib/aiUsage.ts) -- callers use this to show a dedicated modal instead of an inline error string. */
+export function isAiLimitError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === 'ai_limit_exceeded'
+}
+
 async function invoke<T>(path: string, body: object): Promise<T> {
+  // Attaches the caller's Supabase session (if any) so the backend can tell
+  // a signed-in user from an anonymous one, and an admin from a regular
+  // user, for the daily AI-generation limit (api/_lib/auth.ts). Harmless to
+  // send on every request, including ones that ignore it entirely.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
   const response = await fetch(`/api/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
     body: JSON.stringify(body),
   })
   const data = await response.json()
-  if (!response.ok) throw new Error(data.error ?? `Request to /api/${path} failed`)
+  if (!response.ok) throw new ApiError(data.error ?? `Request to /api/${path} failed`, data.error)
   return data as T
 }
 
@@ -92,4 +124,15 @@ export function translateTexts(texts: string[]): Promise<string[]> {
 
 export function expandInstructions(request: ExpandInstructionsRequest): Promise<string> {
   return invoke<{ instructions: string }>('expand-instructions', request).then((r) => r.instructions)
+}
+
+export interface AiUsageInfo {
+  isAdmin: boolean
+  limit: number
+  remaining: number
+}
+
+/** Current caller's daily AI-generation usage (api/_lib/aiUsage.ts) -- read-only, doesn't count as a use. */
+export function getAiUsage(): Promise<AiUsageInfo> {
+  return invoke('ai-usage', {})
 }

@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { AiLimitModal } from '../components/AiLimitModal'
 import { useLanguage } from '../context/LanguageContext'
 import { useRecipeMode } from '../context/RecipeModeContext'
+import { AI_USAGE_QUERY_KEY } from '../hooks/useAiUsage'
 import { usePreferences } from '../hooks/usePreferences'
 import { useSearchRecipes } from '../hooks/useRecipes'
+import { isAiLimitError } from '../lib/api'
 import { CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
 import { selectArrowStyle } from '../lib/selectStyle'
 
@@ -11,10 +15,12 @@ export function Search() {
   const { t, language } = useLanguage()
   const { mode } = useRecipeMode()
   const { data: preferences } = usePreferences()
+  const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const [cuisine, setCuisine] = useState('')
   const [query, setQuery] = useState('')
   const [queryCuisine, setQueryCuisine] = useState('')
+  const [limitModalDismissed, setLimitModalDismissed] = useState(false)
   const { data, isLoading, error } = useSearchRecipes(
     query,
     queryCuisine || undefined,
@@ -27,8 +33,18 @@ export function Search() {
     setCuisine((current) => current || findMatchingOption(preferences.cuisine_preferences, CUISINES))
   }, [preferences])
 
+  // A successful AI-mode search just used up AI_SEARCH_RESULT_COUNT of
+  // today's quota -- refresh the displayed remaining count (Layout.tsx)
+  // right away, same as the other two AI-mode entry points. useSearchRecipes
+  // is a query, not a mutation, so there's no onSuccess callback to hook --
+  // this fires whenever a new (defined) result set lands while in AI mode.
+  useEffect(() => {
+    if (mode === 'ai' && data) queryClient.invalidateQueries({ queryKey: AI_USAGE_QUERY_KEY })
+  }, [data, mode, queryClient])
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setLimitModalDismissed(false)
     setQuery(input)
     setQueryCuisine(cuisine)
   }
@@ -68,7 +84,10 @@ export function Search() {
       </form>
 
       {isLoading && <p className="text-neutral-500">{t('search.loading')}</p>}
-      {error && <p className="text-sm text-red-600">{(error as Error).message}</p>}
+      {error && isAiLimitError(error) && !limitModalDismissed && (
+        <AiLimitModal onClose={() => setLimitModalDismissed(true)} />
+      )}
+      {error && !isAiLimitError(error) && <p className="text-sm text-red-600">{(error as Error).message}</p>}
       {!isLoading && !error && (query || queryCuisine) && data?.length === 0 && (
         <p className="text-neutral-600">{t('search.noResults')}</p>
       )}

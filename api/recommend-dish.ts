@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { generateAiRecipe } from './_lib/aiRecipe.js'
 import { saveAiRecipe } from './_lib/aiRecipeStore.js'
+import { DAILY_AI_LIMIT, recordAndCheckAiUsage } from './_lib/aiUsage.js'
+import { resolveCaller } from './_lib/auth.js'
 import { mealdbSearch, type RecipeSummary } from './_lib/mealdb.js'
 import { spoonacularSearch } from './_lib/spoonacular.js'
 import { translateToVietnamese } from './_lib/translate.js'
@@ -180,6 +182,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const request = (req.body ?? {}) as RecommendRequest
 
   if (request.useAi) {
+    const caller = await resolveCaller(req)
+    if (!caller.isAdmin) {
+      const usage = await recordAndCheckAiUsage(caller.identity)
+      if (!usage.allowed) {
+        return res.status(429).json({ error: 'ai_limit_exceeded', limit: DAILY_AI_LIMIT })
+      }
+    }
+
     // AI mode invents a dish from scratch instead of grounding the pick in
     // a real search result -- the whole point of the tool-calling loop
     // below (search_recipes before recommend_dish) is to avoid hallucinating
