@@ -65,6 +65,31 @@ of external data:
    above — every other read/write still goes through the browser's own
    `supabase-js` client with the anon key and RLS.
 
+**User roles** (`profiles.role`, `'user'` default / `'admin'`) gate the
+DAILY_AI_LIMIT above and back an admin-only user management page
+(`/admin`, `src/pages/AdminUsers.tsx`) where an admin can list every
+signed-up user and change their role. **`role` can only ever be changed
+through `api/admin-set-role.ts`** (which itself re-checks the caller is
+admin server-side via `resolveCaller`, never trusting a client-side check
+alone) -- a plain signed-in session has no ability to update that column at
+all, enforced at the Postgres privilege level (not just RLS), see
+`supabase/migrations/20260922*.sql`. That pair of migrations exists because
+the *first* attempt at this lock (`revoke update (role) ... from
+authenticated`) silently didn't work: `authenticated` already had a broad
+table-level UPDATE grant from Supabase's default project setup, and a
+column-level REVOKE cannot narrow a privilege granted at the table level --
+confirmed live with a real self-escalation attempt
+(`supabase.from('profiles').update({ role: 'admin' })` from an authenticated
+session) that still succeeded after the first migration. The second
+migration fixes it correctly: revoke the table-level UPDATE entirely, then
+re-grant it only for `display_name`. Re-verified live afterward that the
+same self-escalation attempt now fails while a legitimate `display_name`
+update on your own row still works. **Any future column added to
+`profiles` that only an admin/server process should write needs the same
+table-level-revoke-then-column-level-regrant treatment** -- a bare
+column-level REVOKE is not sufficient on its own once a table-level GRANT
+already exists.
+
 **Every recipe reference carries a `source: 'spoonacular' | 'mealdb' | 'ai'`
 tag.** This is load-bearing, not decorative: all three sources use plain
 numeric ids from separate id spaces (an AI recipe's id is just
@@ -144,7 +169,14 @@ src/lib/api.ts              — thin wrappers calling api/*.ts via plain fetch('
                                caller can show AiLimitModal.tsx instead of an inline error string
 src/lib/cuisines.ts         — CUISINES (verified TheMealDB areas) / CATEGORIES (TheMealDB's fixed category list) + VI label maps + findMatchingOption (case-insensitive match of free-text saved preferences against one of these lists), used by Search's filter and Home's form
 src/lib/support.ts          — SUPPORT_EMAIL, the single source of truth for the contact address shown (via src/components/ContactSupportLine.tsx) in AiUsageBanner.tsx and AiLimitModal.tsx
-src/hooks/                  — React Query hooks per concern (useRecipes, useFavorites, usePreferences, useRecommendDish); useTranslatedTexts is only for Favorites' saved titles
+src/hooks/                  — React Query hooks per concern (useRecipes, useFavorites, usePreferences, useRecommendDish); useTranslatedTexts is only for Favorites' saved titles.
+                               useIsAdmin reads profiles.role directly via the anon-key client (the
+                               existing "view own profile" RLS policy already permits exactly this --
+                               no dedicated endpoint needed just to answer "am I admin"), used to
+                               show/hide the Admin nav link and gate AdminRoute.tsx. useAdminUsers/
+                               useSetUserRole wrap admin-users.ts/admin-set-role.ts for the /admin page
+                               -- listing/changing OTHER users' roles does need those admin-only
+                               endpoints, since RLS only ever lets a user see their own row
 src/context/AuthContext.tsx — wraps the Supabase auth session, exposed via useAuth()
 src/context/LanguageContext.tsx — EN/VI toggle state (persisted to localStorage), exposes t(key) for static UI strings
 src/context/RecipeModeContext.tsx — 'catalog'/'ai' toggle state (persisted to localStorage), mirrors LanguageContext exactly. Home/Search read useRecipeMode() and pass `useAi: mode === 'ai'` through to the relevant api/lib/api.ts calls
@@ -167,6 +199,12 @@ src/components/ContactSupportLine.tsx — renders ai.contactMessage ("Contact {e
                                     the modal) without duplicating the split logic. Shared by
                                     AiUsageBanner.tsx and AiLimitModal.tsx
 src/components/ProtectedRoute.tsx — redirects to /login if unauthenticated
+src/components/AdminRoute.tsx — like ProtectedRoute, but also requires useIsAdmin() to be true,
+                                    redirecting a signed-in non-admin to / instead of exposing the
+                                    /admin page's UI at all (the underlying data is admin-gated
+                                    server-side regardless via admin-users.ts/admin-set-role.ts -- this
+                                    is just for not showing a page someone can't use, not the real
+                                    security boundary)
 src/components/AiLimitModal.tsx — shown by Home.tsx (Suggest a dish + Random dish) and Search.tsx
                                     when api.ts's isAiLimitError(err) is true, instead of the usual
                                     inline error text -- a plain "request failed" string would read as
@@ -195,6 +233,13 @@ src/components/RandomRevealModal.tsx — the "Feeling lucky?" pack-opening revea
                                         images array), and api/search.ts's AI branch already populates
                                         that singular field itself via searchDishImages
 src/pages/                  — one file per route, wired up in src/App.tsx (recipe route is /recipe/:source/:id).
+                               AdminUsers.tsx (admin-only, /admin, gated by AdminRoute.tsx) lists every
+                               user (useAdminUsers) with a per-row toggle button to grant/revoke admin
+                               (useSetUserRole) -- the current user's own row shows a static "(you)"
+                               label instead of a button (mirroring admin-set-role.ts's server-side
+                               self-demotion guard in the UI, so that path is never even attempted).
+                               A native window.confirm() gates each toggle, since granting admin means
+                               unlimited AI usage AND the ability to manage other users' roles.
                                History.tsx (signed-in only, /history) mirrors Favorites.tsx but reads
                                from recipe_history instead -- RecipeDetail.tsx records/bumps a view via
                                useRecordRecipeView (upsert on user_id+source+recipe_id, keyed off the
@@ -600,9 +645,39 @@ api/
                                today (plus a contact-for-more-limit line, src/lib/support.ts) -- hidden
                                entirely once `isAdmin` comes back true. useRandomRecipe.ts/
                                useRecommendDish.ts/Search.tsx each invalidate this hook's query key
-                               (AI_USAGE_QUERY_KEY) after a successful AI-mode generation, so the
-                               displayed count drops immediately rather than waiting out its 30s
-                               staleTime
+                               prefix (AI_USAGE_QUERY_KEY) after a successful AI-mode generation, so
+                               the displayed count drops immediately rather than waiting out its 30s
+                               staleTime. useAiUsage.ts's actual query key is
+                               `[...AI_USAGE_QUERY_KEY, user?.id ?? 'anon']`, not the bare constant --
+                               without the user-id suffix, logging in right after browsing
+                               anonymously kept showing the anonymous result (confirmed live: an admin
+                               who'd just signed in still saw "4/5 left", since nothing about login
+                               itself triggers a refetch of an unscoped query key that already has
+                               cached data). Scoping by user id (same pattern as useFavorites/
+                               usePreferences/useRecipeHistory) makes login/logout a genuinely
+                               different cache entry instead of silently reusing a different
+                               identity's stale result
+  admin-users.ts            — lists every signed-up user with their role, for the admin-only user
+                               management page. Admin-only (resolveCaller + isAdmin, 403 otherwise --
+                               checked server-side, same as every other admin action here, never
+                               trusting a client-side check alone). auth.users (email/id, via
+                               supabaseAdmin.auth.admin.listUsers, capped at 200 -- real pagination is
+                               a reasonable future addition if the user base ever outgrows that, not
+                               attempted here) and public.profiles (role) are separate concerns with
+                               no client-side join available -- merged in JS, defaulting to role
+                               'user' for the rare case a profiles row is missing rather than
+                               silently dropping that user from the list
+  admin-set-role.ts         — the ONLY way profiles.role can change after signup. Admin-only, same
+                               resolveCaller check as admin-users.ts. Rejects a non-'user'/'admin'
+                               role (400) and rejects an admin trying to remove their OWN admin role
+                               (400, `cannot_remove_own_admin`) -- there's no other way to regain it
+                               short of a direct database edit (confirmed necessary once already,
+                               fixing a typo'd email in this app's own admin-promotion migration), so
+                               a single misclick here could otherwise permanently lock everyone out of
+                               this page. Uses supabaseAdmin (service role), which is the only client
+                               that CAN write this column at all -- see the "User roles" section above
+                               for why an ordinary session structurally cannot, even via a direct
+                               supabase-js call bypassing this endpoint entirely
   _lib/aiRecipeStore.ts     — saveAiRecipe/getAiRecipe: persistence for AI-generated recipes, via
                                supabaseAdmin against the `ai_recipes` table (RLS enabled, zero
                                policies -- only this admin client can read/write it, confirmed by
@@ -647,7 +722,7 @@ api/
                                to converge on the same "obvious" answer for an under-specified
                                prompt even before any avoidTitles history exists
 
-supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and ai_usage, RLS enabled with zero policies like ai_recipes, both for the daily AI-generation limit, see _lib/auth.ts / _lib/aiUsage.ts above)
+supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration; profiles.role -- 'user' default, 'admin' for the app owner's own account, set directly in the migration -- and ai_usage, RLS enabled with zero policies like ai_recipes, both for the daily AI-generation limit, see _lib/auth.ts / _lib/aiUsage.ts above; the two 20260922*.sql migrations lock down profiles.role at the Postgres privilege level -- see the "User roles" section above for why it took two attempts and what the correct pattern is for any future admin/server-only column)
 ```
 
 Recipe *content* is English-only in both providers; the Vietnamese translation

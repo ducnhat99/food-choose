@@ -6,12 +6,14 @@ import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { useRecipeMode } from '../context/RecipeModeContext'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 import { supabase } from '../lib/supabaseClient'
 
 export function Layout() {
   const { user } = useAuth()
   const { language, setLanguage, t } = useLanguage()
   const { mode, setMode } = useRecipeMode()
+  const { data: isAdmin } = useIsAdmin()
   const [menuOpen, setMenuOpen] = useState(false)
 
   useBodyScrollLock(menuOpen)
@@ -58,6 +60,14 @@ export function Layout() {
               >
                 {t('nav.preferences')}
               </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="hidden text-sm text-neutral-600 hover:text-teal-600 transition-colors sm:inline"
+                >
+                  {t('nav.admin')}
+                </Link>
+              )}
             </>
           )}
           <div className="ml-auto hidden items-center gap-4 sm:flex">
@@ -180,6 +190,15 @@ export function Layout() {
               >
                 {t('nav.preferences')}
               </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={closeMenu}
+                  className="rounded-md px-2 py-2.5 text-sm text-neutral-700 hover:bg-teal-50 hover:text-teal-600"
+                >
+                  {t('nav.admin')}
+                </Link>
+              )}
             </>
           )}
 

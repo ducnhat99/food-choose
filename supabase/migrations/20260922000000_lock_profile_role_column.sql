@@ -1,0 +1,19 @@
+-- profiles.role must only ever change through the admin-only
+-- api/admin-set-role.ts endpoint (using the service-role client, which
+-- bypasses RLS and column privileges entirely) -- never directly from a
+-- user's own browser session. The existing "Users can update their own
+-- profile" RLS policy (init migration) only checks `auth.uid() = id` at the
+-- ROW level; a plain USING clause cannot, by itself, restrict which COLUMNS
+-- an allowed update may touch. Without this, any signed-in user could
+-- self-promote to admin right now, via
+-- `supabase.from('profiles').update({ role: 'admin' }).eq('id', myOwnId)`
+-- in their browser's own console -- a real privilege-escalation gap,
+-- confirmed present (not exploited) while building the admin role-management
+-- feature that makes `role` newly consequential (unlimited AI usage, plus
+-- the ability to manage other users' roles).
+--
+-- Column-level privileges are Postgres-native and independent of RLS,
+-- enforced before RLS is ever evaluated for that column -- `authenticated`
+-- can still update every other column on their own row (e.g. display_name),
+-- just never `role`.
+revoke update (role) on public.profiles from authenticated;

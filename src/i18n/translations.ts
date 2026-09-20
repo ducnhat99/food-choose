@@ -6,6 +6,7 @@ export const translations = {
   'nav.favorites': { en: 'Favorites', vi: 'Yêu thích' },
   'nav.history': { en: 'History', vi: 'Lịch sử' },
   'nav.preferences': { en: 'Preferences', vi: 'Tùy chọn' },
+  'nav.admin': { en: 'Admin', vi: 'Quản trị' },
   'nav.signOut': { en: 'Sign out', vi: 'Đăng xuất' },
   'nav.signIn': { en: 'Sign in', vi: 'Đăng nhập' },
 
@@ -142,6 +143,22 @@ export const translations = {
   'preferences.save': { en: 'Save preferences', vi: 'Lưu tùy chọn' },
   'preferences.saved': { en: 'Saved.', vi: 'Đã lưu.' },
   'preferences.loading': { en: 'Loading preferences...', vi: 'Đang tải tùy chọn...' },
+
+  'admin.title': { en: 'User management', vi: 'Quản lý người dùng' },
+  'admin.loading': { en: 'Loading users...', vi: 'Đang tải danh sách người dùng...' },
+  'admin.email': { en: 'Email', vi: 'Email' },
+  'admin.role': { en: 'Role', vi: 'Vai trò' },
+  'admin.you': { en: '(you)', vi: '(bạn)' },
+  'admin.makeAdmin': { en: 'Make admin', vi: 'Cấp quyền admin' },
+  'admin.makeUser': { en: 'Remove admin', vi: 'Gỡ quyền admin' },
+  'admin.confirmMakeAdmin': {
+    en: "Grant admin access to {email}? They'll have unlimited AI usage and be able to manage other users' roles.",
+    vi: 'Cấp quyền admin cho {email}? Người này sẽ dùng AI không giới hạn và có thể quản lý vai trò của người dùng khác.',
+  },
+  'admin.confirmRemoveAdmin': {
+    en: 'Remove admin access from {email}? They will go back to the normal daily AI limit.',
+    vi: 'Gỡ quyền admin của {email}? Người này sẽ quay lại giới hạn AI hằng ngày thông thường.',
+  },
 } as const satisfies Record<string, Record<Language, string>>
 
 export type TranslationKey = keyof typeof translations

@@ -136,3 +136,22 @@ export interface AiUsageInfo {
 export function getAiUsage(): Promise<AiUsageInfo> {
   return invoke('ai-usage', {})
 }
+
+export type UserRole = 'user' | 'admin'
+
+export interface AdminUser {
+  id: string
+  email: string
+  role: UserRole
+  createdAt: string
+}
+
+/** Every signed-up user with their role -- admin-only (api/admin-users.ts rejects anyone else). */
+export function listAdminUsers(): Promise<AdminUser[]> {
+  return invoke('admin-users', {})
+}
+
+/** Sets another user's role -- admin-only (api/admin-set-role.ts rejects anyone else, and blocks self-demotion). */
+export function setUserRole(userId: string, role: UserRole): Promise<{ id: string; role: UserRole }> {
+  return invoke('admin-set-role', { userId, role })
+}

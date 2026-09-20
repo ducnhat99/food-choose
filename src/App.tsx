@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AdminRoute } from './components/AdminRoute'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
 import { RecipeModeProvider } from './context/RecipeModeContext'
+import { AdminUsers } from './pages/AdminUsers'
 import { Favorites } from './pages/Favorites'
 import { History } from './pages/History'
 import { Home } from './pages/Home'
@@ -52,6 +54,14 @@ export default function App() {
                       <ProtectedRoute>
                         <Preferences />
                       </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="admin"
+                    element={
+                      <AdminRoute>
+                        <AdminUsers />
+                      </AdminRoute>
                     }
                   />
                 </Route>
