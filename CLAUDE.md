@@ -138,13 +138,16 @@ src/i18n/translations.ts    — { key: { en, vi } } dictionary for static UI tex
 src/components/Layout.tsx        — nav shell (React Router <Outlet />) + language toggle button + recipe-source (catalog/AI) toggle button, same sliding-segmented-pill style in the mobile drawer for both
 src/components/ProtectedRoute.tsx — redirects to /login if unauthenticated
 src/components/RandomRevealModal.tsx — the "Feeling lucky?" pack-opening reveal. Its photo circle
-                                        reads `recipe.image || recipe.images[0]`, not `recipe.image`
-                                        alone -- `image` (the provider's own "real photo") is always
-                                        `''` for AI-generated recipes (finalizeRecipe only ever fills
-                                        `images`, the stock-photo array, for those), so the circle
-                                        silently stayed empty for every AI-mode random dish before
-                                        this fallback (confirmed live via a raw /api/random response
-                                        with useAi: true). Same gap RecipeDetail.tsx's ImageCarousel
+                                        reads `recipe.image || recipe.images[0] || '/logo.png'`, not
+                                        `recipe.image` alone -- `image` (the provider's own "real
+                                        photo") is always `''` for AI-generated recipes (finalizeRecipe
+                                        only ever fills `images`, the stock-photo array, for those), so
+                                        the circle silently stayed empty for every AI-mode random dish
+                                        before this fallback (confirmed live via a raw /api/random
+                                        response with useAi: true). The final `/logo.png` fallback
+                                        covers the rarer case where even `images` comes back empty (an
+                                        obscure or invented dish with no Wikimedia coverage at all) --
+                                        without it the circle still had nothing to show. Same gap RecipeDetail.tsx's ImageCarousel
                                         already accounts for via its carouselImages/carouselStockFrom
                                         logic. useFavorites.ts's useAddFavorite had the identical bug
                                         (image_url: recipe.image, saved as '' for an AI recipe favorited
@@ -154,6 +157,19 @@ src/components/RandomRevealModal.tsx — the "Feeling lucky?" pack-opening revea
                                         images array), and api/search.ts's AI branch already populates
                                         that singular field itself via searchDishImages
 src/pages/                  — one file per route, wired up in src/App.tsx (recipe route is /recipe/:source/:id).
+                               History.tsx (signed-in only, /history) mirrors Favorites.tsx but reads
+                               from recipe_history instead -- RecipeDetail.tsx records/bumps a view via
+                               useRecordRecipeView (upsert on user_id+source+recipe_id, keyed off the
+                               primitive recipe.id/source, not the recipe object itself, so switching
+                               display language -- which re-fetches a re-translated recipe with a new
+                               object reference but the same id/source -- doesn't re-record the view).
+                               Capped server-side at 10 rows per user (see the migrations entry below),
+                               so the client never needs its own pruning logic. Its thumbnail falls
+                               back to `/logo.png` when `image_url` is '' -- same gap as
+                               RandomRevealModal.tsx above, since the stored value comes from the same
+                               `recipe.image || recipe.images?.[0] || ''` chain (useRecipeHistory.ts).
+                               Favorites.tsx has the identical `favorite.image_url` gap and hasn't been
+                               fixed the same way -- not reported yet.
                                Home.tsx's RandomDish cuisine picker remembers the user's last choice in
                                sessionStorage (RANDOM_CUISINE_KEY), not just component state -- without
                                this, picking a cuisine, viewing the result (navigating to /recipe/...,
@@ -554,7 +570,7 @@ api/
                                to converge on the same "obvious" answer for an under-specified
                                prompt even before any avoidTitles history exists
 
-supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above)
+supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above; recipe_history is RLS-scoped to auth.uid() like favorites, capped at the 10 most recent rows per user via a trim_recipe_history AFTER INSERT OR UPDATE trigger -- server-enforced rather than relying on every client to prune, same reasoning as handle_new_user() in the init migration)
 ```
 
 Recipe *content* is English-only in both providers; the Vietnamese translation

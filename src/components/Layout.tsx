@@ -46,6 +46,12 @@ export function Layout() {
                 {t('nav.favorites')}
               </Link>
               <Link
+                to="/history"
+                className="hidden text-sm text-neutral-600 hover:text-teal-600 transition-colors sm:inline"
+              >
+                {t('nav.history')}
+              </Link>
+              <Link
                 to="/preferences"
                 className="hidden text-sm text-neutral-600 hover:text-teal-600 transition-colors sm:inline"
               >
@@ -158,6 +164,13 @@ export function Layout() {
                 {t('nav.favorites')}
               </Link>
               <Link
+                to="/history"
+                onClick={closeMenu}
+                className="rounded-md px-2 py-2.5 text-sm text-neutral-700 hover:bg-teal-50 hover:text-teal-600"
+              >
+                {t('nav.history')}
+              </Link>
+              <Link
                 to="/preferences"
                 onClick={closeMenu}
                 className="rounded-md px-2 py-2.5 text-sm text-neutral-700 hover:bg-teal-50 hover:text-teal-600"
@@ -169,60 +182,66 @@ export function Layout() {
 
           <div className="my-2 border-t border-neutral-200" />
 
-          <div
-            role="group"
-            aria-label="Recipe source"
-            className="mx-2 flex items-center overflow-hidden rounded-full border border-teal-200 text-xs font-medium"
-          >
-            <button
-              type="button"
-              onClick={() => setMode('catalog')}
-              className={`flex-1 px-3 py-1.5 text-center transition-colors ${
-                mode === 'catalog' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
-              }`}
+          <div className="mx-2 space-y-1">
+            <span className="px-1 text-xs font-medium text-neutral-500">{t('nav.recipeSource')}</span>
+            <div
+              role="group"
+              aria-label={t('nav.recipeSource')}
+              className="flex items-center overflow-hidden rounded-full border border-teal-200 text-xs font-medium"
             >
-              {t('mode.catalog')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('ai')}
-              className={`flex-1 px-3 py-1.5 text-center transition-colors ${
-                mode === 'ai' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
-              }`}
-            >
-              {t('mode.ai')}
-            </button>
+              <button
+                type="button"
+                onClick={() => setMode('catalog')}
+                className={`flex-1 px-3 py-1.5 text-center transition-colors ${
+                  mode === 'catalog' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+                }`}
+              >
+                {t('mode.catalog')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('ai')}
+                className={`flex-1 px-3 py-1.5 text-center transition-colors ${
+                  mode === 'ai' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+                }`}
+              >
+                {t('mode.ai')}
+              </button>
+            </div>
           </div>
 
-          <div
-            role="group"
-            aria-label="Language"
-            className="relative mx-2 flex items-center rounded-full border border-teal-200 bg-teal-50 p-0.5 text-xs font-medium"
-          >
-            <span
-              aria-hidden="true"
-              className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-teal-600 shadow-sm transition-transform duration-200 ${
-                language === 'vi' ? 'translate-x-0' : 'translate-x-full'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setLanguage('vi')}
-              className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
-                language === 'vi' ? 'text-white' : 'text-neutral-600'
-              }`}
+          <div className="mx-2 space-y-1">
+            <span className="px-1 text-xs font-medium text-neutral-500">{t('nav.language')}</span>
+            <div
+              role="group"
+              aria-label={t('nav.language')}
+              className="relative flex items-center rounded-full border border-teal-200 bg-teal-50 p-0.5 text-xs font-medium"
             >
-              Tiếng Việt
-            </button>
-            <button
-              type="button"
-              onClick={() => setLanguage('en')}
-              className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
-                language === 'en' ? 'text-white' : 'text-neutral-600'
-              }`}
-            >
-              English
-            </button>
+              <span
+                aria-hidden="true"
+                className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-teal-600 shadow-sm transition-transform duration-200 ${
+                  language === 'vi' ? 'translate-x-0' : 'translate-x-full'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setLanguage('vi')}
+                className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
+                  language === 'vi' ? 'text-white' : 'text-neutral-600'
+                }`}
+              >
+                Tiếng Việt
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
+                  language === 'en' ? 'text-white' : 'text-neutral-600'
+                }`}
+              >
+                English
+              </button>
+            </div>
           </div>
 
           {user ? (

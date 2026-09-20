@@ -4,12 +4,15 @@ export const translations = {
   'nav.brand': { en: "Sun's Kitchen", vi: "Sun's Kitchen" },
   'nav.search': { en: 'Search', vi: 'Tìm kiếm' },
   'nav.favorites': { en: 'Favorites', vi: 'Yêu thích' },
+  'nav.history': { en: 'History', vi: 'Lịch sử' },
   'nav.preferences': { en: 'Preferences', vi: 'Tùy chọn' },
   'nav.signOut': { en: 'Sign out', vi: 'Đăng xuất' },
   'nav.signIn': { en: 'Sign in', vi: 'Đăng nhập' },
 
   'common.any': { en: 'Any', vi: 'Bất kỳ' },
 
+  'nav.language': { en: 'Language', vi: 'Ngôn ngữ' },
+  'nav.recipeSource': { en: 'Recipe service', vi: 'Dịch vụ công thức' },
   'mode.catalog': { en: 'API', vi: 'API' },
   'mode.ai': { en: 'AI', vi: 'AI' },
   'mode.aiBadge': { en: 'AI-generated recipe', vi: 'Công thức do AI tạo' },
@@ -75,6 +78,10 @@ export const translations = {
   'favorites.empty': { en: 'No favorites saved yet.', vi: 'Chưa có món ăn yêu thích nào được lưu.' },
   'favorites.remove': { en: 'Remove', vi: 'Xóa' },
   'favorites.loading': { en: 'Loading favorites...', vi: 'Đang tải danh sách yêu thích...' },
+
+  'history.title': { en: 'History', vi: 'Lịch sử' },
+  'history.empty': { en: 'No recently viewed recipes yet.', vi: 'Chưa có công thức nào được xem gần đây.' },
+  'history.loading': { en: 'Loading history...', vi: 'Đang tải lịch sử...' },
 
   'login.title': { en: 'Sign in', vi: 'Đăng nhập' },
   'login.email': { en: 'Email', vi: 'Email' },

@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
 import { RecipeModeProvider } from './context/RecipeModeContext'
 import { Favorites } from './pages/Favorites'
+import { History } from './pages/History'
 import { Home } from './pages/Home'
 import { Login } from './pages/Login'
 import { Preferences } from './pages/Preferences'
@@ -34,6 +35,14 @@ export default function App() {
                     element={
                       <ProtectedRoute>
                         <Favorites />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="history"
+                    element={
+                      <ProtectedRoute>
+                        <History />
                       </ProtectedRoute>
                     }
                   />

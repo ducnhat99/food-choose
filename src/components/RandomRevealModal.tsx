@@ -37,9 +37,10 @@ export function RandomRevealModal({ loading, recipe, onViewRecipe, onClose }: Ra
   // recipe.image (the provider's own "real photo") is empty for AI-generated
   // recipes -- finalizeRecipe only ever populates the stock-photo `images`
   // array for those, never `image` (same gap fixed in RecipeDetail.tsx's
-  // ImageCarousel). Without this fallback, the reveal's photo circle stayed
-  // permanently empty for any AI-mode random dish.
-  const previewImage = recipe?.image || recipe?.images[0]
+  // ImageCarousel). And even `images` can come back empty (e.g. an obscure
+  // or invented dish with no Wikimedia coverage at all). Falls back to the
+  // app logo rather than leaving the photo circle empty in either case.
+  const previewImage = recipe?.image || recipe?.images[0] || '/logo.png'
 
   return (
     <div
@@ -87,7 +88,7 @@ export function RandomRevealModal({ loading, recipe, onViewRecipe, onClose }: Ra
                 revealed(3) ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
               }`}
             >
-              {revealed(3) && previewImage && (
+              {revealed(3) && (
                 <img src={previewImage} alt={recipe.title} className="h-full w-full object-cover" />
               )}
             </div>

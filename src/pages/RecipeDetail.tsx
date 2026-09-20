@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { useExpandInstructions } from '../hooks/useExpandInstructions'
 import { useRecipe } from '../hooks/useRecipes'
 import { useAddFavorite } from '../hooks/useFavorites'
+import { useRecordRecipeView } from '../hooks/useRecipeHistory'
 import type { RecipeSource } from '../lib/api'
 import { getYoutubeEmbedUrl } from '../lib/youtube'
 
@@ -59,6 +60,7 @@ export function RecipeDetail() {
   const { user } = useAuth()
   const addFavorite = useAddFavorite()
   const expandInstructions = useExpandInstructions()
+  const recordView = useRecordRecipeView()
 
   // Reset any previously-generated detailed guide when navigating to a
   // different recipe -- otherwise it would keep showing on the new page,
@@ -66,6 +68,15 @@ export function RecipeDetail() {
   useEffect(() => {
     expandInstructions.reset()
   }, [recipeId, source])
+
+  // Records this view for signed-in users' History page. Keyed on the
+  // primitive id/source (not the `recipe` object itself), so switching the
+  // display language -- which re-fetches a re-translated `recipe` with a new
+  // object reference but the same id/source -- doesn't re-record the view.
+  useEffect(() => {
+    if (!user || !recipe) return
+    recordView.mutate(recipe)
+  }, [user, recipe?.id, recipe?.source])
 
   if (isLoading) return <LoadingModal message={t('recipe.loading')} />
   if (error) return <p className="text-sm text-red-600">{(error as Error).message}</p>
