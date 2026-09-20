@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { LoadingModal } from '../components/LoadingModal'
 import { RandomRevealModal } from '../components/RandomRevealModal'
 import { useLanguage } from '../context/LanguageContext'
+import { useRecipeMode } from '../context/RecipeModeContext'
 import { usePreferences } from '../hooks/usePreferences'
 import { useRandomRecipe } from '../hooks/useRandomRecipe'
 import { useRecommendDish } from '../hooks/useRecommendDish'
@@ -10,25 +11,65 @@ import { CATEGORIES, CATEGORY_LABELS_VI, CUISINE_LABELS_VI, CUISINES, findMatchi
 import { selectArrowStyle } from '../lib/selectStyle'
 import type { RecipeDetail } from '../lib/api'
 
+// Remembers the last cuisine the user picked for Random dish, for the
+// duration of the browser tab -- without this, picking e.g. "Italian",
+// viewing the result (navigating to /recipe/...), then coming back to Home
+// remounts this component and resets its `cuisine` state to '', which the
+// effect below immediately refills from the *account's saved* cuisine
+// preference. If that saved preference is set (e.g. "Vietnamese"), every
+// return trip to Home silently reverts the picker to it, so Random keeps
+// returning Vietnamese regardless of what the user picks afterward --
+// confirmed as the cause of a "random is stuck on one country" report.
+const RANDOM_CUISINE_KEY = 'sk-random-dish-cuisine'
+
+function readStoredRandomCuisine(): string | null {
+  try {
+    return sessionStorage.getItem(RANDOM_CUISINE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function storeRandomCuisine(value: string) {
+  try {
+    sessionStorage.setItem(RANDOM_CUISINE_KEY, value)
+  } catch {
+    // sessionStorage unavailable (private browsing, etc.) -- selection just won't survive a remount
+  }
+}
+
 function RandomDish() {
   const { t, language } = useLanguage()
+  const { mode } = useRecipeMode()
   const navigate = useNavigate()
   const { data: preferences } = usePreferences()
-  const [cuisine, setCuisine] = useState('')
+  const [cuisine, setCuisine] = useState(() => readStoredRandomCuisine() ?? '')
   const [revealRecipe, setRevealRecipe] = useState<RecipeDetail | null>(null)
   const [showModal, setShowModal] = useState(false)
   const { mutate, isPending, error } = useRandomRecipe()
 
   useEffect(() => {
     if (!preferences) return
-    setCuisine((current) => current || findMatchingOption(preferences.cuisine_preferences, CUISINES))
+    // Only fall back to the account preference the first time this tab ever
+    // resolves a value -- once the user (or this effect itself) has picked
+    // one, it's remembered in sessionStorage and this shouldn't override it
+    // again on a later remount, even if that value is now ''  ("Any").
+    if (readStoredRandomCuisine() !== null) return
+    const initial = findMatchingOption(preferences.cuisine_preferences, CUISINES)
+    setCuisine(initial)
+    storeRandomCuisine(initial)
   }, [preferences])
+
+  function handleCuisineChange(value: string) {
+    setCuisine(value)
+    storeRandomCuisine(value)
+  }
 
   function handleClick() {
     setRevealRecipe(null)
     setShowModal(true)
     mutate(
-      { cuisine: cuisine || undefined, language },
+      { cuisine: cuisine || undefined, language, useAi: mode === 'ai' },
       { onSuccess: (recipe) => setRevealRecipe(recipe) },
     )
   }
@@ -53,7 +94,7 @@ function RandomDish() {
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <select
           value={cuisine}
-          onChange={(e) => setCuisine(e.target.value)}
+          onChange={(e) => handleCuisineChange(e.target.value)}
           style={selectArrowStyle}
           className="w-full appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:w-auto sm:text-sm"
         >
@@ -80,6 +121,7 @@ function RandomDish() {
 
 export function Home() {
   const { t, language } = useLanguage()
+  const { mode } = useRecipeMode()
   const { data: preferences } = usePreferences()
   const [ingredients, setIngredients] = useState('')
   const [mood, setMood] = useState('')
@@ -115,6 +157,7 @@ export function Home() {
       dietaryRestrictions: applyPreferences ? preferences?.dietary_restrictions : undefined,
       dislikedIngredients: applyPreferences ? preferences?.disliked_ingredients : undefined,
       language,
+      useAi: mode === 'ai',
     })
   }
 

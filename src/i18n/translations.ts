@@ -10,6 +10,10 @@ export const translations = {
 
   'common.any': { en: 'Any', vi: 'Bất kỳ' },
 
+  'mode.catalog': { en: 'API', vi: 'API' },
+  'mode.ai': { en: 'AI', vi: 'AI' },
+  'mode.aiBadge': { en: 'AI-generated recipe', vi: 'Công thức do AI tạo' },
+
   'home.title': { en: 'What should I cook?', vi: 'Hôm nay nấu gì?' },
   'home.subtitle': {
     en: "Tell us what you have or how you feel, and we'll suggest a dish.",

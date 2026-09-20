@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../context/LanguageContext'
+import { useRecipeMode } from '../context/RecipeModeContext'
 import { usePreferences } from '../hooks/usePreferences'
 import { useSearchRecipes } from '../hooks/useRecipes'
 import { CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
@@ -8,12 +9,18 @@ import { selectArrowStyle } from '../lib/selectStyle'
 
 export function Search() {
   const { t, language } = useLanguage()
+  const { mode } = useRecipeMode()
   const { data: preferences } = usePreferences()
   const [input, setInput] = useState('')
   const [cuisine, setCuisine] = useState('')
   const [query, setQuery] = useState('')
   const [queryCuisine, setQueryCuisine] = useState('')
-  const { data, isLoading, error } = useSearchRecipes(query, queryCuisine || undefined, language)
+  const { data, isLoading, error } = useSearchRecipes(
+    query,
+    queryCuisine || undefined,
+    language,
+    mode === 'ai',
+  )
 
   useEffect(() => {
     if (!preferences) return

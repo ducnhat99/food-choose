@@ -36,22 +36,43 @@ of external data:
      returns `[]` on its own failures too. `api/recipe.ts` doesn't fall back
      between providers at all (see below) since that's impossible in
      principle once you already have a specific id.
+   - **AI** (`source: 'ai'`): a third recipe source, toggled globally
+     (`src/context/RecipeModeContext.tsx`, `localStorage`-persisted like
+     `LanguageContext`) rather than per-request — when on, Suggest a dish /
+     Random dish / Search all invent a recipe from scratch via OpenAI
+     (`api/_lib/aiRecipe.ts`) instead of querying Spoonacular/TheMealDB, for
+     when the two providers' combined catalog doesn't have what someone
+     wants. Generated recipes are persisted to a Supabase table
+     (`ai_recipes`) via a server-only admin client
+     (`api/_lib/supabaseAdmin.ts`, `SUPABASE_SERVICE_ROLE_KEY`) so a
+     generated recipe survives a refresh, can be favorited, and the app
+     accumulates a real catalog of AI dishes over time instead of
+     discarding every generation — see the `api/_lib/aiRecipe.ts` /
+     `api/_lib/aiRecipeStore.ts` entries below for the full design.
 2. **Supabase** (Postgres + Auth only, no Edge Functions) — accessed directly
    from the client via `supabase-js`, protected by Row Level Security (each
-   user only sees their own `preferences`/`favorites` rows).
+   user only sees their own `preferences`/`favorites` rows). `api/` also has
+   its own server-only Supabase access (`api/_lib/supabaseAdmin.ts`, using
+   the service role key, which bypasses RLS) for the `ai_recipes` table
+   above — the only table `api/` talks to directly; every other read/write
+   still goes through the browser's own `supabase-js` client with the anon
+   key and RLS.
 
-**Every recipe reference carries a `source: 'spoonacular' | 'mealdb'` tag.**
-This is load-bearing, not decorative: both providers use plain numeric ids
-from separate id spaces, so the same number can mean two unrelated dishes.
+**Every recipe reference carries a `source: 'spoonacular' | 'mealdb' | 'ai'`
+tag.** This is load-bearing, not decorative: all three sources use plain
+numeric ids from separate id spaces (an AI recipe's id is just
+`ai_recipes.id`), so the same number can mean three unrelated dishes.
 `RecipeSummary`/`RecipeDetail` (`src/lib/api.ts`) both have `source`; the
 route is `/recipe/:source/:id` (`src/App.tsx`); `favorites` has a `source`
-column (`supabase/migrations/20260917010000_add_favorites_source.sql`). Any
-new code that builds a recipe link or saves/looks up a recipe must carry
-`source` through — an id alone is not a valid recipe reference in this app.
-`api/recipe.ts` requires `source` explicitly rather than guessing from the
-id, and never falls back to the other provider on failure, because if
-Spoonacular is down and the id is a Spoonacular id, TheMealDB cannot look it
-up at all (different id space, not just a different name for the same dish).
+column (`supabase/migrations/20260917010000_add_favorites_source.sql`, a
+plain `text` column with no CHECK constraint, so `'ai'` needed zero schema
+change there). Any new code that builds a recipe link or saves/looks up a
+recipe must carry `source` through — an id alone is not a valid recipe
+reference in this app. `api/recipe.ts` requires `source` explicitly rather
+than guessing from the id, and never falls back to another source on
+failure, because if Spoonacular is down and the id is a Spoonacular id,
+neither TheMealDB nor `ai_recipes` can look it up at all (different id
+space, not just a different name for the same dish).
 
 TheMealDB's data is much smaller/patchier than Spoonacular's and shapes real
 constraints in `api/_lib/mealdb.ts` and `src/lib/cuisines.ts`:
@@ -112,10 +133,43 @@ src/lib/cuisines.ts         — CUISINES (verified TheMealDB areas) / CATEGORIES
 src/hooks/                  — React Query hooks per concern (useRecipes, useFavorites, usePreferences, useRecommendDish); useTranslatedTexts is only for Favorites' saved titles
 src/context/AuthContext.tsx — wraps the Supabase auth session, exposed via useAuth()
 src/context/LanguageContext.tsx — EN/VI toggle state (persisted to localStorage), exposes t(key) for static UI strings
+src/context/RecipeModeContext.tsx — 'catalog'/'ai' toggle state (persisted to localStorage), mirrors LanguageContext exactly. Home/Search read useRecipeMode() and pass `useAi: mode === 'ai'` through to the relevant api/lib/api.ts calls
 src/i18n/translations.ts    — { key: { en, vi } } dictionary for static UI text (nav, labels, buttons, errors)
-src/components/Layout.tsx        — nav shell (React Router <Outlet />) + language toggle button
+src/components/Layout.tsx        — nav shell (React Router <Outlet />) + language toggle button + recipe-source (catalog/AI) toggle button, same sliding-segmented-pill style in the mobile drawer for both
 src/components/ProtectedRoute.tsx — redirects to /login if unauthenticated
+src/components/RandomRevealModal.tsx — the "Feeling lucky?" pack-opening reveal. Its photo circle
+                                        reads `recipe.image || recipe.images[0]`, not `recipe.image`
+                                        alone -- `image` (the provider's own "real photo") is always
+                                        `''` for AI-generated recipes (finalizeRecipe only ever fills
+                                        `images`, the stock-photo array, for those), so the circle
+                                        silently stayed empty for every AI-mode random dish before
+                                        this fallback (confirmed live via a raw /api/random response
+                                        with useAi: true). Same gap RecipeDetail.tsx's ImageCarousel
+                                        already accounts for via its carouselImages/carouselStockFrom
+                                        logic. useFavorites.ts's useAddFavorite had the identical bug
+                                        (image_url: recipe.image, saved as '' for an AI recipe favorited
+                                        from RecipeDetail.tsx) -- fixed the same way, falling back to
+                                        recipe.images?.[0]. Search.tsx's plain recipe.image read is NOT
+                                        this bug: search results are RecipeSummary (image only, no
+                                        images array), and api/search.ts's AI branch already populates
+                                        that singular field itself via searchDishImages
 src/pages/                  — one file per route, wired up in src/App.tsx (recipe route is /recipe/:source/:id).
+                               Home.tsx's RandomDish cuisine picker remembers the user's last choice in
+                               sessionStorage (RANDOM_CUISINE_KEY), not just component state -- without
+                               this, picking a cuisine, viewing the result (navigating to /recipe/...,
+                               a sibling route, so Home/RandomDish fully unmounts), then coming back
+                               reset local state to '' and the account-preference-autofill effect
+                               immediately refilled it from the saved cuisine_preferences default (e.g.
+                               "Vietnamese"), silently discarding whatever the user had picked. From the
+                               user's side this looked exactly like Random being "stuck"/"cached" on one
+                               country no matter what was chosen afterward -- confirmed as the cause of
+                               that report. The stored value is checked with `!== null`, not a truthy
+                               check, so an explicit "Any" pick (stored as '') is also remembered and
+                               not re-clobbered by the same effect on the next remount. Search.tsx's
+                               cuisine filter (line ~27) has the identical autofill-from-preference
+                               pattern and is exposed to the same unmount/remount trigger (clicking a
+                               result navigates away too) -- not fixed here since it wasn't reported,
+                               but the same sessionStorage approach would apply if it ever is
                                Home and Search both pre-fill their Cuisine dropdown from the signed-in
                                user's saved Preferences (findMatchingOption in cuisines.ts) on first
                                load only -- a later manual change to the dropdown is never overwritten,
@@ -312,7 +366,19 @@ api/
                                reason. For every other cuisine, this search is only attempted when
                                there's no native video at all (RecipeDetail.videoUrls stays a single-
                                entry array in that case), since there's nothing to usefully show
-                               alongside and no reason to spend the shared search.list quota
+                               alongside and no reason to spend the shared search.list quota.
+                               The resolved dish name is computed ONCE (a `vietnameseDishName`
+                               variable in finalize.ts, not recomputed separately per use) and reused
+                               for the displayed/translated title too, not just this video query --
+                               originally it was only wired into the video query, and the title
+                               translation below still went through the generic word-for-word
+                               translateToVietnamese, which reintroduced the exact backwards-grammar
+                               problem this whole mechanism exists to avoid (confirmed live: "Vietnamese
+                               Lemongrass Chicken Stir-Fry" displayed as "Món Xào Gà Sả Việt Nam"
+                               instead of "Gà Xào Sả"). Fixed by using vietnameseDishName as
+                               recipe.title directly (falling back to the generic translation only
+                               when dish-name resolution itself failed) instead of always using the
+                               generic translation's own result for the title
   _lib/images.ts            — searchDishImages: extra stock photos for RecipeDetail's slideshow,
                                sourced from Wikimedia Commons (no API key needed at all). Neither
                                recipe provider has more than one real photo per dish, so this is a
@@ -322,28 +388,75 @@ api/
                                is the correct, honest outcome (better than an unrelated result). A
                                `filetype:bitmap` search filter excludes non-photo files (PDF scans,
                                diagrams) that would otherwise sometimes match on stray title words
+  _lib/simplifyDishName.ts  — simplifyDishNameForImageSearch: an OpenAI call that strips a title
+                               down to the simplest generic common name for that type of dish (e.g.
+                               "Vietnamese Lemongrass Chicken Stir-Fry" -> "lemongrass chicken"),
+                               used as a searchDishImages fallback specifically for AI-generated
+                               recipes (finalize.ts, and api/search.ts's AI-mode thumbnails) when the
+                               literal title search comes up empty. AI-invented titles essentially
+                               never match Commons' exact-phrase search verbatim -- confirmed live:
+                               0 results for the exact invented title above vs. 10 real, relevant
+                               photos for the simplified term. Only spends the extra call when the
+                               plain search already failed, and only for source: 'ai' (provider
+                               titles are real menu/recipe names already reasonably likely to match
+                               on their own). Still returns [] like normal when even the simplified
+                               term has no real Wikimedia coverage (confirmed live for some modern
+                               fusion "bowl" dishes) -- honest silence over a wrong-dish photo,
+                               same principle as images.ts itself
   search.ts                 — query -> search.php?s= / complexSearch?query=, else cuisine ->
                                filter.php?a= / complexSearch?cuisine= (query wins if both are set,
                                matching TheMealDB's more limited API; Spoonacular natively supports
                                both together, that combined-filter capability is the main reason
                                Spoonacular is tried first); translates the query EN->VI first and
-                               result titles back after, regardless of which provider answered
-  recipe.ts                 — requires an explicit `source` in the request body, calls that
-                               provider's lookup directly, then _lib/finalize.ts's finalizeRecipe
-                               for photos + translation. Deliberately does NOT fall back to the
-                               other provider on failure (unlike search.ts/random.ts/
-                               recommend-dish.ts) -- Spoonacular and TheMealDB ids are different
-                               numbers for different dishes, so there's no equivalent id to try on
-                               the other side. If a Spoonacular-sourced id fails while quota is
-                               exhausted (e.g. an old favorite), the 404 says so explicitly rather
-                               than implying the recipe doesn't exist
+                               result titles back after, regardless of which provider answered.
+                               `useAi: true` skips both providers entirely: _lib/aiRecipe.ts's
+                               generateAiRecipes invents AI_SEARCH_RESULT_COUNT (6) meaningfully
+                               different dishes in one call, each persisted via saveAiRecipe and
+                               given a best-effort searchDishImages thumbnail immediately (the one
+                               place AI mode is pricier than the provider path -- N generations plus
+                               N image lookups per search, vs. one provider request)
+  recipe.ts                 — requires an explicit `source` in the request body (now
+                               'spoonacular' | 'mealdb' | 'ai'), calls that source's lookup directly
+                               (getAiRecipe from _lib/aiRecipeStore.ts for 'ai'), then
+                               _lib/finalize.ts's finalizeRecipe for photos + translation.
+                               Deliberately does NOT fall back to another source on failure (unlike
+                               search.ts/random.ts/recommend-dish.ts) -- every source uses a
+                               different id space, so there's no equivalent id to try elsewhere. If
+                               a Spoonacular-sourced id fails while quota is exhausted (e.g. an old
+                               favorite), the 404 says so explicitly rather than implying the recipe
+                               doesn't exist
   random.ts                 — a random dish, optionally scoped to a cuisine: tries
                                spoonacularRandom, falls back to mealdbRandom, then the same
                                finalizeRecipe as recipe.ts. The frontend pre-fills RecipeDetail's
                                React Query cache with this response (useRandomRecipe.ts) and
                                navigates straight to /recipe/:source/:id, so there's no second
-                               fetch or loading flash
-  recommend-dish.ts         — the AI recommendation feature: calls OpenAI's Chat Completions API
+                               fetch or loading flash. `useAi: true` calls _lib/aiRecipe.ts's
+                               generateAiRecipe instead (skipping both providers), persists the
+                               result via saveAiRecipe, and runs it through the same finalizeRecipe
+                               call -- everything downstream (translation, image/video search,
+                               React Query cache pre-fill) is identical regardless of source.
+                               Before generating, fetches getRecentAiRecipeTitles from
+                               _lib/aiRecipeStore.ts (15 most recent, filtered to the same cuisine
+                               when one is set) and passes them as generateAiRecipe's `avoidTitles`
+                               -- each generation call is a stateless OpenAI request with no memory
+                               of any other, so without this, repeated Random taps for the same
+                               (or no) cuisine reliably converge on the same "obvious" dish
+                               (confirmed live: 6 independent calls for cuisine "Vietnamese" with no
+                               avoidTitles produced "lemongrass chicken" in 5 of 6; after the fix,
+                               6 calls produced 6 distinct dishes). Only applied in random.ts, per
+                               explicit request -- search.ts's generateAiRecipes already gets
+                               variety within one call for free (all N dishes generated together,
+                               see below) and recommend-dish.ts is grounded by the user's own
+                               ingredients/mood/constraints rather than a bare cuisine, so it's far
+                               less prone to this kind of clustering
+  recommend-dish.ts         — the AI recommendation feature. `useAi: true` takes a completely
+                               different, much simpler path: one _lib/aiRecipe.ts generateAiRecipe
+                               call (which also returns its own `reasoning`), persisted via
+                               saveAiRecipe, returned as {recipeId, reasoning, title, source: 'ai'}
+                               -- skips the tool-calling loop below entirely, since grounding a pick
+                               in a real search result (the loop's whole purpose) is the opposite of
+                               what AI mode is for. Everything from here down describes the
+                               non-AI-mode path: calls OpenAI's Chat Completions API
                                with a search_recipes tool (query/area/category/mainIngredient,
                                mapped onto whichever provider actually answers) and a
                                recommend_dish tool that terminates the loop with {recipeId,
@@ -381,8 +494,67 @@ api/
                                every recipe view) since it's an extra OpenAI call with no benefit
                                for recipes whose instructions are already good
   expand-instructions.ts    — thin endpoint around _lib/expandInstructions.ts
+  _lib/supabaseAdmin.ts     — supabaseAdmin: a server-only Supabase client using
+                               SUPABASE_SERVICE_ROLE_KEY (bypasses RLS entirely -- never expose this
+                               key to the browser, no VITE_ prefix, ever). null when the key isn't
+                               configured, so callers fail with a clear "not configured" error
+                               instead of crashing. The app's only server-side Supabase access --
+                               everywhere else (auth, preferences, favorites) the browser talks to
+                               Supabase directly via src/lib/supabaseClient.ts's anon-key client.
+                               Passes `realtime: { transport: ws }` (the `ws` package, added as a
+                               direct dependency) to createClient -- confirmed live this is required
+                               on Node 20 (the Vercel function runtime used by `vercel dev` locally
+                               and in production), even though this app never uses Realtime:
+                               createClient() throws immediately at construction ("Node.js 20
+                               detected without native WebSocket support") otherwise, since it sets
+                               up a Realtime client unconditionally. The `ws as never` cast there
+                               works around a real type mismatch between @types/ws and
+                               supabase-js's WebSocketLikeConstructor, not a runtime issue
+  _lib/aiRecipeStore.ts     — saveAiRecipe/getAiRecipe: persistence for AI-generated recipes, via
+                               supabaseAdmin against the `ai_recipes` table (RLS enabled, zero
+                               policies -- only this admin client can read/write it, confirmed by
+                               design: a direct anon-key query is denied). saveAiRecipe returns the
+                               new integer id (matches favorites.spoonacular_recipe_id's type and
+                               every existing RecipeSummary.id: number contract, so `source: 'ai'`
+                               needed zero changes to shared id-handling code). getAiRecipe
+                               reconstructs a RecipeDetail with image/images/videoUrls all empty,
+                               left for finalizeRecipe to fill in exactly like a fresh
+                               Spoonacular/TheMealDB fetch -- these are deliberately NOT persisted
+                               alongside the recipe content, for consistency with every other source
+                               (finalizeRecipe already re-resolves images/video on every view
+                               regardless of source, no "already have it" short-circuit exists even
+                               for provider recipes, so AI recipes get the same treatment rather
+                               than a special case). getRecentAiRecipeTitles(limit, area?) fetches
+                               the most recent titles (optionally filtered to one area/cuisine),
+                               for random.ts to steer generateAiRecipe away from repeats -- see
+                               aiRecipe.ts's avoidTitles below. Returns [] on any failure, since
+                               this is a variety nicety, never worth failing the request over
+  _lib/aiRecipe.ts          — generateAiRecipe/generateAiRecipes: invents a complete original
+                               recipe (or, for Search, several MEANINGFULLY DIFFERENT ones in one
+                               call -- calling generateAiRecipe in a loop would give each call zero
+                               awareness of what the others already produced, risking near-
+                               duplicates) via OpenAI, respecting the same ingredients/mood/time/
+                               cuisine/category/dietaryRestrictions/dislikedIngredients constraints
+                               api/recommend-dish.ts's tool-calling path already accepts. Always
+                               generates in English regardless of the request's language, so
+                               finalizeRecipe's existing translation pipeline (glossary.ts,
+                               translateIngredientPhrases) is the one place that localizes every
+                               source -- no separate translation logic for AI recipes. Used by
+                               api/random.ts, api/recommend-dish.ts, and api/search.ts when
+                               `useAi: true` is set on the request, in place of querying
+                               Spoonacular/TheMealDB; api/recommend-dish.ts's AI path skips its
+                               whole tool-calling loop entirely (grounding a pick in a real search
+                               result is the opposite of what AI mode is for). Also accepts an
+                               `avoidTitles?: string[]` input, appended to the prompt as "Do NOT
+                               suggest any of these dishes"; passed by random.ts using
+                               getRecentAiRecipeTitles (see aiRecipeStore.ts above) to fix repeated
+                               Random taps converging on the same dish. `callAiRecipeModel` also
+                               sets `temperature: 1.1` (above the API's 1.0 default) as a
+                               complementary general-variety measure, reducing the model's tendency
+                               to converge on the same "obvious" answer for an under-specified
+                               prompt even before any avoidTitles history exists
 
-supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above)
+supabase/migrations/        — SQL schema (profiles, preferences, favorites — all RLS-scoped to auth.uid(); favorites also has a source column, see above; ai_recipes has RLS enabled with zero policies -- server-only access via _lib/supabaseAdmin.ts, see above)
 ```
 
 Recipe *content* is English-only in both providers; the Vietnamese translation

@@ -34,14 +34,23 @@ export function useAddFavorite() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (recipe: { id: number; source: RecipeSource; title: string; image: string }) => {
+    mutationFn: async (recipe: {
+      id: number
+      source: RecipeSource
+      title: string
+      image: string
+      images?: string[]
+    }) => {
       if (!user) throw new Error('Must be signed in to save favorites')
       const { error } = await supabase.from('favorites').insert({
         user_id: user.id,
         spoonacular_recipe_id: recipe.id,
         source: recipe.source,
         title: recipe.title,
-        image_url: recipe.image,
+        // recipe.image (the provider's own "real photo") is always '' for
+        // AI-generated recipes -- finalizeRecipe only fills `images`, the
+        // stock-photo array, for those. Same gap as RandomRevealModal.tsx.
+        image_url: recipe.image || recipe.images?.[0] || '',
       })
       if (error) throw error
     },

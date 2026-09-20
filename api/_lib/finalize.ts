@@ -1,6 +1,7 @@
 import type { RecipeDetail } from './mealdb.js'
 import { translateIngredientName, translateMeasure } from './glossary.js'
 import { searchDishImages } from './images.js'
+import { simplifyDishNameForImageSearch } from './simplifyDishName.js'
 import { translateIngredientPhrases, translateToVietnamese } from './translate.js'
 import { resolveVietnameseDishName } from './vietnameseDishName.js'
 import { extractYoutubeVideoId, searchYoutubeVideo } from './youtube.js'
@@ -33,6 +34,18 @@ export async function finalizeRecipe(
   // English-biased index would return poor or no results.
   recipe.images = await searchDishImages(recipe.title)
 
+  // AI-generated recipes have a wholly invented title, which Commons' exact-
+  // phrase search (see images.ts) essentially never matches verbatim --
+  // confirmed live, 0 results for "Vietnamese Lemongrass Chicken Stir-Fry"
+  // vs. 10 real, relevant photos for the simplified "lemongrass chicken".
+  // Only spends the extra OpenAI call when the plain title search actually
+  // came up empty, and only for AI recipes (provider recipes' titles are
+  // real menu/recipe names already reasonably likely to match on their own).
+  if (recipe.images.length === 0 && recipe.source === 'ai') {
+    const simplified = await simplifyDishNameForImageSearch(recipe.title)
+    if (simplified) recipe.images = await searchDishImages(simplified)
+  }
+
   // For a Vietnamese-cuisine dish, always search YouTube for a genuinely
   // Vietnamese-language video -- per explicit request, shown ALONGSIDE any
   // native provider video rather than replacing it, since TheMealDB's own
@@ -47,6 +60,25 @@ export async function finalizeRecipe(
   const isVietnameseCuisine = recipe.area.toLowerCase() === 'vietnamese'
   const nativeVideoUrls = recipe.videoUrls
 
+  // Resolved once (not separately for video search vs. the displayed
+  // title below) -- the dish's actual Vietnamese name (e.g. "Bún chả") is
+  // needed in both places, and computing it independently in each led to a
+  // real bug: video search used this correctly, but the displayed title
+  // still went through the generic translateToVietnamese call further
+  // down, which translates word-for-word and produces exactly the
+  // backwards-grammar problem this function exists to avoid (confirmed
+  // live: "Vietnamese Lemongrass Chicken Stir-Fry" displayed as "Món Xào
+  // Gà Sả Việt Nam" -- English word order preserved, not real Vietnamese
+  // phrasing). Computed regardless of the page's display language, since
+  // it's also needed for video search when browsing in English.
+  let vietnameseDishName: string | null = null
+  if (isVietnameseCuisine) {
+    vietnameseDishName = await resolveVietnameseDishName(
+      recipe.title,
+      recipe.ingredients.map((ing) => ing.name),
+    )
+  }
+
   if (isVietnameseCuisine || nativeVideoUrls.length === 0) {
     // Search with a Vietnamese-language query regardless of the page's own
     // display language -- confirmed live that this reliably surfaces
@@ -59,22 +91,12 @@ export async function finalizeRecipe(
     let videoQuery = recipe.title
     let videoQueryLanguage: 'en' | 'vi' | undefined
     if (isVietnameseCuisine) {
-      // The dish's actual Vietnamese name (e.g. "Bún chả") is a much
-      // stronger search signal than a literal translation of the recipe's
-      // English title, which for a compound traditional dish can translate
-      // word-for-word into a phrase no Vietnamese video would actually be
-      // titled with (confirmed live: "Vietnamese Grilled Pork with
-      // Vermicelli Noodles" -> "Thịt Nướng Việt Nam với Bún" instead of
-      // "Bún chả"/"Bún thịt nướng"). Falls back to a plain translation, and
-      // then to the English title itself, if dish-name resolution fails.
-      const dishName = await resolveVietnameseDishName(
-        recipe.title,
-        recipe.ingredients.map((ing) => ing.name),
-      )
-      if (dishName) {
-        videoQuery = dishName
+      if (vietnameseDishName) {
+        videoQuery = vietnameseDishName
         videoQueryLanguage = 'vi'
       } else {
+        // Falls back to a plain translation, and then to the English title
+        // itself, if dish-name resolution fails.
         const [vietnameseTitle] = await translateToVietnamese([recipe.title])
         // translateToVietnamese falls back to returning the input unchanged
         // on failure -- only treat it as a real Vietnamese query if it
@@ -167,7 +189,11 @@ export async function finalizeRecipe(
         translateIngredientPhrases(combinedTexts),
       ])
 
-    recipe.title = translatedFields[0] ?? recipe.title
+    // Prefer the already-resolved real Vietnamese dish name over a fresh
+    // word-for-word translation of the title, for a Vietnamese-cuisine dish
+    // -- see vietnameseDishName above for why (this is the fix for the
+    // "Món Xào Gà Sả Việt Nam" bug).
+    recipe.title = vietnameseDishName ?? translatedFields[0] ?? recipe.title
     recipe.category = translatedFields[1] ?? recipe.category
     recipe.area = translatedFields[2] ?? recipe.area
     recipe.instructions = translatedInstructions[0] ?? recipe.instructions

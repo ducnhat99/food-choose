@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import type { Language } from '../i18n/translations'
 import { getRecipe, searchRecipes, type RecipeSource } from '../lib/api'
 
-export function useSearchRecipes(query: string, cuisine?: string, language?: Language) {
+export function useSearchRecipes(query: string, cuisine?: string, language?: Language, useAi?: boolean) {
   return useQuery({
-    queryKey: ['recipes', 'search', query, cuisine, language],
-    queryFn: () => searchRecipes(query, cuisine, language),
+    queryKey: ['recipes', 'search', query, cuisine, language, useAi],
+    queryFn: () => searchRecipes(query, cuisine, language, useAi),
     enabled: query.trim().length > 0 || !!cuisine,
   })
 }

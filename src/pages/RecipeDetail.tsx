@@ -76,14 +76,21 @@ export function RecipeDetail() {
   const videoEmbedUrls = recipe.videoUrls
     .map((url) => getYoutubeEmbedUrl(url))
     .filter((url): url is string => url !== null)
+  // AI-generated recipes have no real provider photo at all (`image` stays
+  // '' -- finalizeRecipe only ever fills in `images`, the stock-photo
+  // array), so prepending it here would show a broken image as the first
+  // slide. Every image is a best-effort stock photo in that case, not just
+  // the ones after index 0.
+  const carouselImages = recipe.image ? [recipe.image, ...recipe.images] : recipe.images
+  const carouselStockFrom = recipe.image ? 1 : 0
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold text-neutral-900">{recipe.title}</h1>
       <ImageCarousel
-        images={[recipe.image, ...recipe.images]}
+        images={carouselImages}
         alt={recipe.title}
-        stockFrom={1}
+        stockFrom={carouselStockFrom}
       />
       <div className="flex flex-wrap gap-2">
         <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-medium capitalize text-teal-800">
@@ -92,6 +99,11 @@ export function RecipeDetail() {
         <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
           {recipe.area}
         </span>
+        {recipe.source === 'ai' && (
+          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">
+            {t('mode.aiBadge')}
+          </span>
+        )}
       </div>
 
       {user && (

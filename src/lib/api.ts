@@ -1,6 +1,6 @@
 import type { Language } from '../i18n/translations'
 
-export type RecipeSource = 'spoonacular' | 'mealdb'
+export type RecipeSource = 'spoonacular' | 'mealdb' | 'ai'
 
 export interface RecipeSummary {
   id: number
@@ -36,6 +36,7 @@ export interface RecommendDishRequest {
   dietaryRestrictions?: string[]
   dislikedIngredients?: string[]
   language?: Language
+  useAi?: boolean
 }
 
 export interface RecommendDishResponse {
@@ -60,8 +61,9 @@ export function searchRecipes(
   query: string,
   cuisine?: string,
   language?: Language,
+  useAi?: boolean,
 ): Promise<RecipeSummary[]> {
-  return invoke('search', { query, cuisine, language })
+  return invoke('search', { query, cuisine, language, useAi })
 }
 
 export function getRecipe(
@@ -76,8 +78,12 @@ export function recommendDish(request: RecommendDishRequest): Promise<RecommendD
   return invoke('recommend-dish', request)
 }
 
-export function randomRecipe(cuisine?: string, language?: Language): Promise<RecipeDetail> {
-  return invoke('random', { cuisine, language })
+export function randomRecipe(
+  cuisine?: string,
+  language?: Language,
+  useAi?: boolean,
+): Promise<RecipeDetail> {
+  return invoke('random', { cuisine, language, useAi })
 }
 
 export function translateTexts(texts: string[]): Promise<string[]> {

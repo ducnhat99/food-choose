@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { mealdbSearch } from './_lib/mealdb.js'
+import { generateAiRecipe } from './_lib/aiRecipe.js'
+import { saveAiRecipe } from './_lib/aiRecipeStore.js'
+import { mealdbSearch, type RecipeSummary } from './_lib/mealdb.js'
 import { spoonacularSearch } from './_lib/spoonacular.js'
 import { translateToVietnamese } from './_lib/translate.js'
 
@@ -16,6 +18,7 @@ interface RecommendRequest {
   dietaryRestrictions?: string[]
   dislikedIngredients?: string[]
   language?: 'en' | 'vi'
+  useAi?: boolean
 }
 
 const tools = [
@@ -93,7 +96,11 @@ function mapCategoryToSpoonacular(category: string): {
 }
 
 interface RecipeInfo {
-  source: 'spoonacular' | 'mealdb'
+  // The tool-calling loop below only ever populates this from
+  // spoonacularSearch/mealdbSearch results (never AI mode, which returns
+  // early before reaching here), but reuses RecipeSummary['source'] rather
+  // than a narrower literal union to stay in sync with it automatically.
+  source: RecipeSummary['source']
   title: string
 }
 
@@ -171,6 +178,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const request = (req.body ?? {}) as RecommendRequest
+
+  if (request.useAi) {
+    // AI mode invents a dish from scratch instead of grounding the pick in
+    // a real search result -- the whole point of the tool-calling loop
+    // below (search_recipes before recommend_dish) is to avoid hallucinating
+    // a dish that doesn't exist in either catalog, which is irrelevant here.
+    try {
+      const generated = await generateAiRecipe(request)
+      const id = await saveAiRecipe(generated)
+
+      let title = generated.title
+      let reasoning = generated.reasoning
+      if (request.language === 'vi') {
+        const [translatedTitle, translatedReasoning] = await translateToVietnamese([title, reasoning])
+        title = translatedTitle || title
+        reasoning = translatedReasoning || reasoning
+      }
+
+      return res.status(200).json({ recipeId: id, reasoning, title, source: 'ai' })
+    } catch (err) {
+      console.error('AI recommend-dish error:', err)
+      return res.status(502).json({ error: 'Could not produce a recommendation, please try again' })
+    }
+  }
+
   const idToRecipe = new Map<number, RecipeInfo>()
 
   const userPrompt = [

@@ -50,6 +50,12 @@ come from Wikimedia Commons. `YOUTUBE_API_KEY` is optional too — it fills in a
 video guide for Spoonacular recipes (TheMealDB recipes already have one
 built in); leave it blank to simply show no video for those.
 
+`SUPABASE_SERVICE_ROLE_KEY` is required for the "AI" recipe-source toggle
+(Suggest a dish / Random dish / Search all invent recipes from scratch
+instead of using Spoonacular/TheMealDB) — get it from the same Supabase API
+settings page as the anon key. It bypasses Row Level Security, so keep it
+server-only; leaving it blank just disables AI mode.
+
 Only the `VITE_`-prefixed vars get bundled into the browser. Everything else
 is read server-side only, by the functions in `api/`.
 

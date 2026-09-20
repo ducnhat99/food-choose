@@ -3,12 +3,14 @@ import { Link, Outlet } from 'react-router-dom'
 import { BackgroundDecoration } from './BackgroundDecoration'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
+import { useRecipeMode } from '../context/RecipeModeContext'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { supabase } from '../lib/supabaseClient'
 
 export function Layout() {
   const { user } = useAuth()
   const { language, setLanguage, t } = useLanguage()
+  const { mode, setMode } = useRecipeMode()
   const [menuOpen, setMenuOpen] = useState(false)
 
   useBodyScrollLock(menuOpen)
@@ -52,6 +54,30 @@ export function Layout() {
             </>
           )}
           <div className="ml-auto hidden items-center gap-4 sm:flex">
+            <div
+              role="group"
+              aria-label="Recipe source"
+              className="flex items-center overflow-hidden rounded-full border border-teal-200 text-xs font-medium"
+            >
+              <button
+                type="button"
+                onClick={() => setMode('catalog')}
+                className={`whitespace-nowrap px-3 py-1 text-center transition-colors ${
+                  mode === 'catalog' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+                }`}
+              >
+                {t('mode.catalog')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('ai')}
+                className={`whitespace-nowrap px-3 py-1 text-center transition-colors ${
+                  mode === 'ai' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+                }`}
+              >
+                {t('mode.ai')}
+              </button>
+            </div>
             <button
               onClick={() => setLanguage(language === 'en' ? 'vi' : 'en')}
               className="rounded-md border border-teal-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:border-teal-400 hover:text-teal-600 transition-colors"
@@ -142,6 +168,31 @@ export function Layout() {
           )}
 
           <div className="my-2 border-t border-neutral-200" />
+
+          <div
+            role="group"
+            aria-label="Recipe source"
+            className="mx-2 flex items-center overflow-hidden rounded-full border border-teal-200 text-xs font-medium"
+          >
+            <button
+              type="button"
+              onClick={() => setMode('catalog')}
+              className={`flex-1 px-3 py-1.5 text-center transition-colors ${
+                mode === 'catalog' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+              }`}
+            >
+              {t('mode.catalog')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('ai')}
+              className={`flex-1 px-3 py-1.5 text-center transition-colors ${
+                mode === 'ai' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-neutral-600 hover:bg-teal-100'
+              }`}
+            >
+              {t('mode.ai')}
+            </button>
+          </div>
 
           <div
             role="group"

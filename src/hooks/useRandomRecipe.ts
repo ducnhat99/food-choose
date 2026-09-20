@@ -6,8 +6,8 @@ export function useRandomRecipe() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ cuisine, language }: { cuisine?: string; language?: Language }) =>
-      randomRecipe(cuisine, language),
+    mutationFn: ({ cuisine, language, useAi }: { cuisine?: string; language?: Language; useAi?: boolean }) =>
+      randomRecipe(cuisine, language, useAi),
     onSuccess: (recipe, { language }) => {
       // Pre-fill the detail page's cache so navigating to it is instant,
       // since this response already IS the full recipe detail.

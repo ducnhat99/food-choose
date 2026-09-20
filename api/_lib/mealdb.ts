@@ -5,7 +5,7 @@ export interface RecipeSummary {
   id: number
   title: string
   image: string
-  source: 'spoonacular' | 'mealdb'
+  source: 'spoonacular' | 'mealdb' | 'ai'
 }
 
 export interface RecipeDetail extends RecipeSummary {
