@@ -522,7 +522,32 @@ api/
                                obscure/invented-sounding recipe titles often come back empty, which
                                is the correct, honest outcome (better than an unrelated result). A
                                `filetype:bitmap` search filter excludes non-photo files (PDF scans,
-                               diagrams) that would otherwise sometimes match on stray title words
+                               diagrams) that would otherwise sometimes match on stray title words.
+                               The exact-phrase `"..."` wrapping (CirrusSearch) is necessary but NOT
+                               sufficient on its own -- it still matches text anywhere on a file's
+                               page (categories, descriptions), not just the file's own title, so a
+                               page can match without the file actually depicting the dish. Confirmed
+                               live and reported by a user ("in AI mode the image most of the time
+                               doesn't match"): searching the simplified term "sausage and peppers"
+                               (for an AI-invented "Italian Sausage and Peppers Skillet" recipe)
+                               returned two genuinely on-topic photos alongside an unrelated "Spanish
+                               Paella" photo and three "Feast of San Gennaro" street-festival crowd
+                               photos. Fixed by over-fetching candidates (`count * 4`, capped at 40 --
+                               free, Commons has no per-call quota unlike YouTube) and filtering to
+                               only those whose OWN title/filename shares at least half its
+                               significant words with the query (textRelevance.ts's
+                               significantWords, shared with youtube.ts's bestMatchIndex -- same
+                               underlying question, applied as "keep everything good enough" here vs.
+                               "pick the single best" there), before slicing to `count`. Re-verified
+                               live afterward: the paella/festival photos are gone from the sausage
+                               case, and previously-good cases (lemongrass chicken, arroz al horno,
+                               pot roast) are unaffected, still returning their full 6 results
+  _lib/textRelevance.ts     — significantWords: lowercases, splits on non-letter/digit boundaries,
+                               and strips TITLE_STOPWORDS (generic words like "the"/"with"/"recipe"/
+                               Vietnamese equivalents that would otherwise inflate every candidate's
+                               overlap score regardless of the actual dish). Extracted from youtube.ts
+                               so images.ts's relevance filter (see above) could reuse the exact same
+                               word-overlap logic instead of duplicating the stopword list
   _lib/simplifyDishName.ts  — simplifyDishNameForImageSearch: an OpenAI call that strips a title
                                down to the simplest generic common name for that type of dish (e.g.
                                "Vietnamese Lemongrass Chicken Stir-Fry" -> "lemongrass chicken"),

@@ -1,26 +1,9 @@
+import { significantWords } from './textRelevance.js'
+
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY
 
 interface YoutubeSearchResponse {
   items: Array<{ id: { videoId: string }; snippet: { title: string } }>
-}
-
-// Generic words that show up in almost every cooking-video title regardless
-// of the actual dish -- excluded so the overlap score below reflects real
-// dish-name matches, not every candidate scoring a free point for sharing
-// "recipe"/"how to make"/"cách nấu" with every other candidate too.
-const TITLE_STOPWORDS = new Set([
-  'the', 'a', 'an', 'of', 'with', 'and', 'in', 'on', 'for', 'to', 'how', 'make', 'recipe',
-  'best', 'easy', 'quick', 'simple', 'style', 'homemade', 'authentic',
-  'cách', 'nấu', 'món', 'ăn', 'ngon', 'đơn', 'giản', 'nhanh', 'công', 'thức', 'tại', 'nhà',
-  'với', 'của', 'là', 'và', 'cho', 'này', 'làm', 'siêu', 'hay', 'đúng', 'điệu',
-])
-
-function significantWords(text: string): string[] {
-  return text
-    .normalize('NFC')
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((w) => w.length > 1 && !TITLE_STOPWORDS.has(w))
 }
 
 /**

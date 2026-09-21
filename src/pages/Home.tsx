@@ -139,7 +139,7 @@ export function Home() {
   const [timeAvailable, setTimeAvailable] = useState('')
   const [cuisine, setCuisine] = useState('')
   const [category, setCategory] = useState('')
-  const [applyPreferences, setApplyPreferences] = useState(true)
+  const [applyPreferences, setApplyPreferences] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const { mutate, data, isPending, error } = useRecommendDish()
 
