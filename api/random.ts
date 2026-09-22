@@ -4,7 +4,7 @@ import { getRecentAiRecipeTitles, saveAiRecipe } from './_lib/aiRecipeStore.js'
 import { resolveCaller } from './_lib/auth.js'
 import { finalizeRecipe } from './_lib/finalize.js'
 import { mealdbRandom } from './_lib/mealdb.js'
-import { DAILY_RECIPE_LIMIT, recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
+import { recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
 import { spoonacularRandom } from './_lib/spoonacular.js'
 
 const RECENT_TITLES_TO_AVOID = 15
@@ -16,12 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Applies to catalog mode too, not just AI -- both cost real resources
   // (OpenAI usage for AI mode, Spoonacular's own limited free-tier quota
-  // for catalog mode), so the same daily cap covers either.
+  // for catalog mode), so the same daily + monthly cap covers either.
   const caller = await resolveCaller(req)
   if (!caller.isAdmin) {
     const usage = await recordAndCheckRecipeUsage(caller.identity)
     if (!usage.allowed) {
-      return res.status(429).json({ error: 'recipe_limit_exceeded', limit: DAILY_RECIPE_LIMIT })
+      return res.status(429).json({ error: 'recipe_limit_exceeded' })
     }
   }
 

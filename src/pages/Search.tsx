@@ -36,11 +36,15 @@ export function Search() {
   // A successful search (catalog or AI) just used up some of today's quota
   // -- refresh the displayed remaining count (Layout.tsx) right away, same
   // as the other two entry points. useSearchRecipes is a query, not a
-  // mutation, so there's no onSuccess callback to hook -- this fires
-  // whenever a new (defined) result set lands.
+  // mutation, so there's no onSuccess/onError callback to hook -- this
+  // fires whenever a new (defined) result set OR a new error lands. Also
+  // invalidated on error, not just success -- the usage check increments
+  // before the actual search runs, so even a blocked/failed attempt is
+  // usually still recorded server-side, and RecipeLimitModal.tsx's own
+  // useRecipeUsage() read should reflect that rather than stale numbers.
   useEffect(() => {
-    if (data) queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
-  }, [data, queryClient])
+    if (data || error) queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
+  }, [data, error, queryClient])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

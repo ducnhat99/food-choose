@@ -17,5 +17,13 @@ export function useRandomRecipe() {
       // quota -- refresh the displayed remaining count (Layout.tsx) right away.
       queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
     },
+    // Also invalidate on error -- the usage check increments BEFORE the
+    // actual fetch/generation is attempted, so a blocked (or even a later,
+    // unrelated) failure has usually still recorded an attempt server-side.
+    // Without this, RecipeLimitModal.tsx's own useRecipeUsage() read could
+    // show stale pre-attempt numbers instead of what just got recorded.
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
+    },
   })
 }

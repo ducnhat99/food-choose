@@ -4,7 +4,7 @@ import { saveAiRecipe } from './_lib/aiRecipeStore.js'
 import { resolveCaller } from './_lib/auth.js'
 import { searchDishImages } from './_lib/images.js'
 import { mealdbSearch } from './_lib/mealdb.js'
-import { DAILY_RECIPE_LIMIT, recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
+import { recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
 import { simplifyDishNameForImageSearch } from './_lib/simplifyDishName.js'
 import { spoonacularSearch } from './_lib/spoonacular.js'
 import { translateToEnglish, translateToVietnamese } from './_lib/translate.js'
@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!caller.isAdmin) {
     const usage = await recordAndCheckRecipeUsage(caller.identity, useAi ? AI_SEARCH_RESULT_COUNT : 1)
     if (!usage.allowed) {
-      return res.status(429).json({ error: 'recipe_limit_exceeded', limit: DAILY_RECIPE_LIMIT })
+      return res.status(429).json({ error: 'recipe_limit_exceeded' })
     }
   }
 

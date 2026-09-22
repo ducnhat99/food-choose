@@ -50,17 +50,24 @@ of external data:
      discarding every generation — see the `api/_lib/aiRecipe.ts` /
      `api/_lib/aiRecipeStore.ts` entries below for the full design.
 
-   **Every recipe fetch/generation is capped at `DAILY_RECIPE_LIMIT` (5) per
-   identity per UTC day, for every non-admin caller, signed in or not --
-   regardless of catalog or AI mode.** Initially this only covered AI mode
-   (which costs real OpenAI usage), but catalog mode isn't actually free
-   either -- Spoonacular's own free-tier quota is just as finite, and
+   **Every recipe fetch/generation is capped at BOTH `DAILY_RECIPE_LIMIT`
+   (5, per UTC day) AND `MONTHLY_RECIPE_LIMIT` (15, per UTC calendar month)
+   per identity, for every non-admin caller, signed in or not -- regardless
+   of catalog or AI mode.** Initially this only covered AI mode (which costs
+   real OpenAI usage), but catalog mode isn't actually free either --
+   Spoonacular's own free-tier quota is just as finite, and
    `api/recommend-dish.ts`'s catalog path *also* calls OpenAI (the
    tool-calling loop that grounds a pick in a real search result), so it was
-   never truly AI-free to begin with. One shared counter covers Suggest a
-   dish / Random dish / Search combined, either mode. See
-   `api/_lib/recipeUsage.ts` / `api/_lib/auth.ts` below for how identity/role
-   is resolved and the limit enforced, and `src/components/RecipeLimitModal.tsx`
+   never truly AI-free to begin with. The monthly cap was added on top of
+   the daily one specifically because 15/month is well under 5×30 -- a
+   caller using their full daily allowance for just 3 days already exhausts
+   the whole month, so the monthly limit is often the one that actually
+   binds for an active user, not the daily one (the daily cap alone still
+   matters for capping a single-day burst early in the month). One shared
+   pair of counters covers Suggest a dish / Random dish / Search combined,
+   either mode. See `api/_lib/recipeUsage.ts` / `api/_lib/auth.ts` below for
+   how identity/role is resolved and both limits enforced, and
+   `src/components/RecipeLimitModal.tsx`
    for the user-facing side.
 2. **Supabase** (Postgres + Auth only, no Edge Functions) — accessed directly
    from the client via `supabase-js`, protected by Row Level Security (each
@@ -72,7 +79,7 @@ of external data:
    own `supabase-js` client with the anon key and RLS.
 
 **User roles** (`profiles.role`, `'user'` default / `'admin'`) gate the
-DAILY_RECIPE_LIMIT above and back an admin-only user management page
+daily/monthly recipe limits above and back an admin-only user management page
 (`/admin`, `src/pages/AdminUsers.tsx`) where an admin can list every
 signed-up user and change their role. **`role` can only ever be changed
 through `api/admin-set-role.ts`** (which itself re-checks the caller is
@@ -203,12 +210,12 @@ src/components/Layout.tsx        — nav shell (React Router <Outlet />) + langu
                                     Renders <RecipeUsageBanner /> right below the header, on every page
 src/components/RecipeUsageBanner.tsx — a full-width strip below the header (not tucked into the toggle
                                     itself, so it's hard to miss on any page) showing a non-admin
-                                    caller their remaining daily recipe quota (useRecipeUsage) plus a
-                                    <ContactSupportLine />. Shown regardless of catalog/AI mode -- both
-                                    cost real resources, see the "recipe fetch/generation" limit note
-                                    near the top of this file -- for a caller api/recipe-usage.ts
-                                    reports isAdmin: false for; null otherwise, so it collapses to
-                                    nothing for the admin account
+                                    caller their remaining daily AND monthly recipe quota
+                                    (useRecipeUsage) plus a <ContactSupportLine />. Shown regardless of
+                                    catalog/AI mode -- both cost real resources, see the "recipe
+                                    fetch/generation" limit note near the top of this file -- for a
+                                    caller api/recipe-usage.ts reports isAdmin: false for; null
+                                    otherwise, so it collapses to nothing for the admin account
 src/components/ContactSupportLine.tsx — renders usage.contactMessage ("Contact {email} for more
                                     support.") with SUPPORT_EMAIL (src/lib/support.ts) as a real
                                     mailto: link in place of its `{email}` placeholder -- split the
@@ -228,10 +235,19 @@ src/components/AdminRoute.tsx — like ProtectedRoute, but also requires useIsAd
 src/components/RecipeLimitModal.tsx — shown by Home.tsx (Suggest a dish + Random dish) and Search.tsx
                                     when api.ts's isRecipeLimitError(err) is true, instead of the usual
                                     inline error text -- a plain "request failed" string would read as
-                                    broken to a non-admin caller, when this is an intentional daily
-                                    cost-control limit (see _lib/recipeUsage.ts) that resets tomorrow.
-                                    Was named AiLimitModal.tsx and said "switch to API mode" as a
-                                    workaround until catalog mode was also brought under the same
+                                    broken to a non-admin caller, when this is an intentional daily +
+                                    monthly cost-control limit (see _lib/recipeUsage.ts) that simply
+                                    resets on its own. Calls useRecipeUsage() itself (doesn't take the
+                                    exceeded numbers as a prop) -- the blocked request already recorded
+                                    its attempt server-side (recordAndCheckRecipeUsage increments
+                                    before checking), so refetching here shows the caller's true current
+                                    daily/monthly standing directly; useRandomRecipe.ts/
+                                    useRecommendDish.ts/Search.tsx all invalidate RECIPE_USAGE_QUERY_KEY
+                                    on error too (not just success) so this refetch isn't stale.
+                                    Whichever of daily/monthly is at 0 in the message is self-evidently
+                                    the one that was hit -- no separate "which limit" flag threaded
+                                    through. Was named AiLimitModal.tsx and said "switch to API mode" as
+                                    a workaround until catalog mode was also brought under the same
                                     limit -- see the note near the top of this file. Also renders
                                     <ContactSupportLine />, same as RecipeUsageBanner.tsx, for someone
                                     who specifically wants a higher limit
@@ -723,14 +739,23 @@ api/
                                a serverless function has no other durable identity for a logged-out
                                visitor (imprecise for shared IPs, an accepted tradeoff for a
                                cost-control limit with no account to key off of)
-  _lib/recipeUsage.ts       — DAILY_RECIPE_LIMIT (5) / recordAndCheckRecipeUsage(identity, count?):
-                               the limit itself, applying regardless of catalog/AI mode (originally
-                               AI-only; see the note near the top of this file for why it was widened
-                               and renamed from aiUsage.ts/ai_usage/DAILY_AI_LIMIT -- "AI usage" would
-                               be actively misleading once it also counts real Spoonacular/TheMealDB
-                               fetches). Calls the increment_recipe_usage Postgres function (see its
-                               migration) to atomically record `count` more recipes for `identity`
-                               today (UTC) and get back the new running total in one round trip -- a
+  _lib/recipeUsage.ts       — DAILY_RECIPE_LIMIT (5) / MONTHLY_RECIPE_LIMIT (15) /
+                               recordAndCheckRecipeUsage(identity, count?): the limits themselves,
+                               applying regardless of catalog/AI mode (originally AI-only and
+                               daily-only; see the note near the top of this file for why it was
+                               widened and renamed from aiUsage.ts/ai_usage/DAILY_AI_LIMIT -- "AI
+                               usage" would be actively misleading once it also counts real
+                               Spoonacular/TheMealDB fetches). There is NO separate monthly counter
+                               table -- the daily rows this file already writes (one per identity per
+                               day) are the single source of truth for both limits; the monthly total
+                               is derived by summing the current UTC calendar month's rows
+                               (getMonthlyUsageSum), not by maintaining a second counter that could
+                               drift out of sync with the first. That sum is a plain SELECT, not
+                               atomic with the daily increment -- an acceptable race for a soft
+                               cost-control limit, not a hard security boundary. Calls the
+                               increment_recipe_usage Postgres function (see its migration) to
+                               atomically record `count` more recipes for `identity` today (UTC) and
+                               get back the new running daily total in one round trip -- a
                                select-then-upsert from here would race under concurrent requests.
                                `count` is >1 only for api/search.ts's AI mode (AI_SEARCH_RESULT_COUNT
                                recipes generated per call, each counts) -- every other caller
@@ -740,12 +765,20 @@ api/
                                incorrectly locking out every request over an infra hiccup. random.ts/
                                recommend-dish.ts/search.ts each call resolveCaller then, if not admin,
                                this -- before doing any real work, returning
-                               `{ error: 'recipe_limit_exceeded' }` with HTTP 429 if over. api.ts's
-                               isRecipeLimitError(err) recognizes this specific code so the frontend
-                               can show RecipeLimitModal.tsx instead of a generic inline error string.
-                               getRecipeUsage(identity) is the read-only counterpart -- a plain SELECT
-                               for today's row (no RPC, nothing to increment), for api/recipe-usage.ts
-                               to report a caller's remaining quota *before* they hit the limit.
+                               `{ error: 'recipe_limit_exceeded' }` with HTTP 429 if EITHER limit is
+                               over (the response body no longer carries the specific numbers --
+                               RecipeLimitModal.tsx fetches its own live totals via useRecipeUsage()
+                               instead, see below). api.ts's isRecipeLimitError(err) recognizes this
+                               specific code so the frontend can show RecipeLimitModal.tsx instead of
+                               a generic inline error string. getRecipeUsage(identity) is the
+                               read-only counterpart -- a plain SELECT for today's row plus the same
+                               monthly sum (no RPC, nothing to increment), for api/recipe-usage.ts to
+                               report a caller's remaining quota on both axes *before* they hit either
+                               limit. 15/month is deliberately well under 5×30 -- a caller maxing out
+                               the daily allowance for just 3 days already exhausts the whole month,
+                               so in practice the monthly cap is often what actually binds for an
+                               active user, with the daily cap still catching a single-day burst early
+                               in the month.
                                **Gotcha, confirmed live**: renaming the `ai_usage` table with `ALTER
                                TABLE ... RENAME TO recipe_usage` and the function with `ALTER FUNCTION
                                ... RENAME` did NOT update the table name INSIDE the function's own SQL
@@ -761,16 +794,20 @@ api/
                                references by name needs an explicit `create or replace` of that
                                function too -- a bare `alter table ... rename` is not enough.
   recipe-usage.ts           — read-only usage check for the caller (resolveCaller + getRecipeUsage
-                               above) -- `{ isAdmin, limit, remaining }`, never increments anything.
-                               Backs src/hooks/useRecipeUsage.ts, which
-                               src/components/RecipeUsageBanner.tsx uses to show a non-admin caller
-                               how many recipes they have left today (plus a contact-for-more-limit
-                               line, src/lib/support.ts) -- hidden entirely once `isAdmin` comes back
-                               true. useRandomRecipe.ts/useRecommendDish.ts/Search.tsx each invalidate
-                               this hook's query key prefix (RECIPE_USAGE_QUERY_KEY) after a
-                               successful fetch/generation (catalog or AI), so the displayed count
-                               drops immediately rather than waiting out its 30s staleTime.
-                               useRecipeUsage.ts's actual query key is
+                               above) -- `{ isAdmin, dailyLimit, dailyRemaining, monthlyLimit,
+                               monthlyRemaining }`, never increments anything. Backs
+                               src/hooks/useRecipeUsage.ts, which src/components/RecipeUsageBanner.tsx
+                               uses to show a non-admin caller how many recipes they have left today
+                               AND this month (plus a contact-for-more-limit line,
+                               src/lib/support.ts) -- hidden entirely once `isAdmin` comes back true.
+                               useRandomRecipe.ts/useRecommendDish.ts/Search.tsx each invalidate this
+                               hook's query key prefix (RECIPE_USAGE_QUERY_KEY) on BOTH success AND
+                               error (the usage check increments before the actual work happens, so
+                               even a blocked/failed attempt is usually still recorded server-side --
+                               without invalidating on error too, RecipeLimitModal.tsx's own
+                               useRecipeUsage() read could show stale pre-attempt numbers), so the
+                               displayed count updates immediately rather than waiting out its 30s
+                               staleTime. useRecipeUsage.ts's actual query key is
                                `[...RECIPE_USAGE_QUERY_KEY, user?.id ?? 'anon']`, not the bare
                                constant -- without the user-id suffix, logging in right after browsing
                                anonymously kept showing the anonymous result (confirmed live: an admin

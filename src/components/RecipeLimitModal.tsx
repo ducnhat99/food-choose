@@ -1,6 +1,7 @@
 import { ContactSupportLine } from './ContactSupportLine'
 import { useLanguage } from '../context/LanguageContext'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useRecipeUsage } from '../hooks/useRecipeUsage'
 
 interface RecipeLimitModalProps {
   onClose: () => void
@@ -8,15 +9,32 @@ interface RecipeLimitModalProps {
 
 /**
  * Shown instead of the usual inline error text when api/_lib/recipeUsage.ts's
- * daily recipe limit is hit (api.ts's isRecipeLimitError) -- a plain
- * "request failed" message would leave a non-admin user thinking something
- * is broken, when this is an intentional, cost-control limit (applying to
- * catalog mode just as much as AI mode -- Spoonacular's own quota is just
- * as finite as OpenAI's) that simply resets the next day.
+ * daily OR monthly recipe limit is hit (api.ts's isRecipeLimitError) -- a
+ * plain "request failed" message would leave a non-admin user thinking
+ * something is broken, when this is an intentional, cost-control limit
+ * (applying to catalog mode just as much as AI mode -- Spoonacular's own
+ * quota is just as finite as OpenAI's) that simply resets on its own.
+ *
+ * Reads useRecipeUsage() itself rather than taking the exceeded numbers as
+ * props -- the blocked request already recorded its attempt server-side
+ * (recordAndCheckRecipeUsage increments before checking), so refetching
+ * here shows the caller's current daily/monthly standing directly, without
+ * every caller needing to thread the 429 response's numbers through.
+ * Whichever of the two is at 0 is self-evidently the one that was just
+ * hit -- no separate "which limit" flag needed.
  */
 export function RecipeLimitModal({ onClose }: RecipeLimitModalProps) {
   const { t } = useLanguage()
+  const { data: usage } = useRecipeUsage()
   useBodyScrollLock(true)
+
+  const message = usage
+    ? t('usage.limitMessage')
+        .replace('{dailyRemaining}', String(usage.dailyRemaining))
+        .replace('{dailyLimit}', String(usage.dailyLimit))
+        .replace('{monthlyRemaining}', String(usage.monthlyRemaining))
+        .replace('{monthlyLimit}', String(usage.monthlyLimit))
+    : null
 
   return (
     <div
@@ -31,7 +49,7 @@ export function RecipeLimitModal({ onClose }: RecipeLimitModalProps) {
           ⏳
         </div>
         <h2 className="text-lg font-semibold text-neutral-900">{t('usage.limitTitle')}</h2>
-        <p className="text-sm text-neutral-600">{t('usage.limitMessage')}</p>
+        {message && <p className="text-sm text-neutral-600">{message}</p>}
         <p className="text-sm text-neutral-600">
           <ContactSupportLine linkClassName="font-medium text-teal-700 underline hover:text-teal-800" />
         </p>

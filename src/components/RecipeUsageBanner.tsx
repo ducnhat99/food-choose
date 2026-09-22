@@ -17,8 +17,10 @@ export function RecipeUsageBanner() {
   if (!usage || usage.isAdmin) return null
 
   const message = t('usage.remaining')
-    .replace('{remaining}', String(usage.remaining))
-    .replace('{limit}', String(usage.limit))
+    .replace('{dailyRemaining}', String(usage.dailyRemaining))
+    .replace('{dailyLimit}', String(usage.dailyLimit))
+    .replace('{monthlyRemaining}', String(usage.monthlyRemaining))
+    .replace('{monthlyLimit}', String(usage.monthlyLimit))
 
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-800">

@@ -130,11 +130,13 @@ export function expandInstructions(request: ExpandInstructionsRequest): Promise<
 
 export interface RecipeUsageInfo {
   isAdmin: boolean
-  limit: number
-  remaining: number
+  dailyLimit: number
+  dailyRemaining: number
+  monthlyLimit: number
+  monthlyRemaining: number
 }
 
-/** Current caller's daily recipe usage (api/_lib/recipeUsage.ts) -- read-only, doesn't count as a use. Applies regardless of catalog/AI mode. */
+/** Current caller's daily + monthly recipe usage (api/_lib/recipeUsage.ts) -- read-only, doesn't count as a use. Applies regardless of catalog/AI mode. */
 export function getRecipeUsage(): Promise<RecipeUsageInfo> {
   return invoke('recipe-usage', {})
 }

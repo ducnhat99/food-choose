@@ -12,5 +12,11 @@ export function useRecommendDish() {
       // today's quota -- refresh the displayed remaining count (Layout.tsx) right away.
       queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
     },
+    // Also invalidate on error -- see useRandomRecipe.ts for why (the usage
+    // check increments before the attempt, so even a failed one is usually
+    // still recorded server-side).
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: RECIPE_USAGE_QUERY_KEY })
+    },
   })
 }

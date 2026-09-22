@@ -18,15 +18,21 @@ export const translations = {
   'mode.ai': { en: 'AI', vi: 'AI' },
   'mode.aiBadge': { en: 'AI-generated recipe', vi: 'Công thức do AI tạo' },
 
-  'usage.limitTitle': { en: "That's today's limit", vi: 'Đã đạt giới hạn hôm nay' },
+  'usage.limitTitle': { en: "That's the limit", vi: 'Đã đạt giới hạn' },
   'usage.limitMessage': {
-    en: "You've reached today's limit of 5 recipes. It resets tomorrow.",
-    vi: 'Bạn đã đạt giới hạn 5 công thức trong hôm nay. Giới hạn sẽ được làm mới vào ngày mai.',
+    en:
+      "You've reached your recipe limit. Today: {dailyRemaining} of {dailyLimit} left. This month: " +
+      '{monthlyRemaining} of {monthlyLimit} left. The daily limit resets at midnight UTC; the ' +
+      'monthly limit resets on the 1st.',
+    vi:
+      'Bạn đã đạt giới hạn công thức. Hôm nay: còn {dailyRemaining}/{dailyLimit}. Tháng này: còn ' +
+      '{monthlyRemaining}/{monthlyLimit}. Giới hạn ngày sẽ được làm mới vào nửa đêm UTC; giới hạn ' +
+      'tháng sẽ được làm mới vào ngày 1.',
   },
   'usage.limitClose': { en: 'Got it', vi: 'Đã hiểu' },
   'usage.remaining': {
-    en: 'You have {remaining} of {limit} recipes left today.',
-    vi: 'Bạn còn {remaining}/{limit} công thức cho hôm nay.',
+    en: 'You have {dailyRemaining} of {dailyLimit} recipes left today, and {monthlyRemaining} of {monthlyLimit} left this month.',
+    vi: 'Bạn còn {dailyRemaining}/{dailyLimit} công thức hôm nay, và còn {monthlyRemaining}/{monthlyLimit} trong tháng này.',
   },
   'usage.contactMessage': {
     en: 'Contact {email} for more support.',
