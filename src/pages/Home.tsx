@@ -8,7 +8,15 @@ import { useRecipeMode } from '../context/RecipeModeContext'
 import { usePreferences } from '../hooks/usePreferences'
 import { useRandomRecipe } from '../hooks/useRandomRecipe'
 import { useRecommendDish } from '../hooks/useRecommendDish'
-import { CATEGORIES, CATEGORY_LABELS_VI, CUISINE_LABELS_VI, CUISINES, findMatchingOption } from '../lib/cuisines'
+import {
+  CATEGORIES,
+  CATEGORY_LABELS_VI,
+  CUISINE_LABELS_VI,
+  CUISINES,
+  findMatchingOption,
+  MEAL_TIMES,
+  MEAL_TIME_LABELS_VI,
+} from '../lib/cuisines'
 import { isRecipeLimitError, type RecipeDetail } from '../lib/api'
 import { selectArrowStyle } from '../lib/selectStyle'
 
@@ -139,6 +147,7 @@ export function Home() {
   const [timeAvailable, setTimeAvailable] = useState('')
   const [cuisine, setCuisine] = useState('')
   const [category, setCategory] = useState('')
+  const [mealTime, setMealTime] = useState('')
   const [applyPreferences, setApplyPreferences] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const { mutate, data, isPending, error } = useRecommendDish()
@@ -167,6 +176,7 @@ export function Home() {
         timeAvailable: timeAvailable ? Number(timeAvailable) : undefined,
         cuisine: cuisine || undefined,
         category: category || undefined,
+        mealTime: mealTime || undefined,
         dietaryRestrictions: applyPreferences ? preferences?.dietary_restrictions : undefined,
         dislikedIngredients: applyPreferences ? preferences?.disliked_ingredients : undefined,
         language,
@@ -214,9 +224,16 @@ export function Home() {
             className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
           />
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="block text-sm font-medium text-neutral-700">{t('home.timeLabel')}</label>
+            {/* min-h-10 reserves room for a 2-line label (e.g. Vietnamese's
+                "Thời gian có sẵn, phút (tùy chọn)") -- without it, a label
+                that wraps to 2 lines pushes just that field's input down,
+                out of alignment with its shorter-labeled siblings in the
+                same grid row. */}
+            <label className="block min-h-10 text-sm font-medium text-neutral-700">
+              {t('home.timeLabel')}
+            </label>
             <input
               type="number"
               min={1}
@@ -226,7 +243,7 @@ export function Home() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-neutral-700">
+            <label className="block min-h-10 text-sm font-medium text-neutral-700">
               {t('home.cuisineLabel')}
             </label>
             <select
@@ -244,7 +261,7 @@ export function Home() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-neutral-700">
+            <label className="block min-h-10 text-sm font-medium text-neutral-700">
               {t('home.categoryLabel')}
             </label>
             <select
@@ -257,6 +274,24 @@ export function Home() {
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {language === 'vi' ? CATEGORY_LABELS_VI[c] : c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block min-h-10 text-sm font-medium text-neutral-700">
+              {t('home.mealTimeLabel')}
+            </label>
+            <select
+              value={mealTime}
+              onChange={(e) => setMealTime(e.target.value)}
+              style={selectArrowStyle}
+              className="mt-1 w-full appearance-none rounded-md border border-neutral-300 px-3 py-2 pr-8 text-base focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm"
+            >
+              <option value="">{t('common.any')}</option>
+              {MEAL_TIMES.map((m) => (
+                <option key={m} value={m}>
+                  {language === 'vi' ? MEAL_TIME_LABELS_VI[m] : m}
                 </option>
               ))}
             </select>

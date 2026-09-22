@@ -173,7 +173,19 @@ src/lib/api.ts              — thin wrappers calling api/*.ts via plain fetch('
                                response, carrying the raw backend `error` string as `.code` --
                                isRecipeLimitError(err) checks that code for 'recipe_limit_exceeded'
                                so a caller can show RecipeLimitModal.tsx instead of an inline error string
-src/lib/cuisines.ts         — CUISINES (verified TheMealDB areas) / CATEGORIES (TheMealDB's fixed category list) + VI label maps + findMatchingOption (case-insensitive match of free-text saved preferences against one of these lists), used by Search's filter and Home's form
+src/lib/cuisines.ts         — CUISINES (verified TheMealDB areas) / CATEGORIES (TheMealDB's fixed category list) + VI label maps + findMatchingOption (case-insensitive match of free-text saved preferences against one of these lists), used by Search's filter and Home's form.
+                               MEAL_TIMES (Breakfast/Lunch/Dinner) is a separate, simpler axis added
+                               alongside CATEGORIES on Home's Suggest-a-dish form only (not Random
+                               dish or Search) -- unlike CATEGORIES/CUISINES, it's NOT mapped onto a
+                               provider filter param in api/recommend-dish.ts's searchRecipes/
+                               mapCategoryToSpoonacular: neither Spoonacular's `type` enum nor
+                               TheMealDB's category list has a real "lunch"/"dinner" value (Spoonacular
+                               has "breakfast" but nothing for the other two), so forcing one onto a
+                               fake category would either silently no-op or return wrong results.
+                               Instead it's sent as a plain prompt hint (both to the tool-calling
+                               loop's reasoning and to _lib/aiRecipe.ts's generation prompt), leaving
+                               it to the model's own judgment what "a lunch dish" means in context
+                               (lighter/quicker) vs. dinner (heartier) or breakfast (egg/pancake-style)
 src/lib/support.ts          — SUPPORT_EMAIL, the single source of truth for the contact address shown (via src/components/ContactSupportLine.tsx) in RecipeUsageBanner.tsx and RecipeLimitModal.tsx
 src/hooks/                  — React Query hooks per concern (useRecipes, useFavorites, usePreferences, useRecommendDish); useTranslatedTexts is only for Favorites' saved titles.
                                useIsAdmin reads profiles.role directly via the anon-key client (the
@@ -282,7 +294,25 @@ src/pages/                  — one file per route, wired up in src/App.tsx (rec
                                Home and Search both pre-fill their Cuisine dropdown from the signed-in
                                user's saved Preferences (findMatchingOption in cuisines.ts) on first
                                load only -- a later manual change to the dropdown is never overwritten,
-                               since the effect only sets state when the field is still empty
+                               since the effect only sets state when the field is still empty.
+                               RecipeDetail.tsx's instructions list renders each step as its own
+                               bordered card (a numbered circle badge + the step text), not a plain
+                               `<ol className="list-inside list-decimal">` -- reported that on mobile
+                               the steps visually ran together into one undifferentiated block.
+                               Root cause: `list-inside` has no hanging indent, so once a step's text
+                               wraps to a second line (routine on a narrow mobile viewport, rare on
+                               desktop -- exactly why this was a mobile-specific complaint), that
+                               continuation line starts flush left, at the same indent as the NEXT
+                               step's number marker, erasing the visual boundary between steps. The
+                               per-step card (border + background + explicit gap) makes each step's
+                               boundary immune to text wrapping regardless of viewport width, rather
+                               than depending on list-marker indentation behaving correctly. The
+                               `<ol>`/`<li>` wrapper is kept (not swapped for plain `<div>`s) so
+                               screen readers still get real ordered-list semantics; the numbered
+                               badge is `aria-hidden` to avoid announcing the position twice.
+                               parseInstructionSteps itself (same file) was NOT the bug here --
+                               checked live against 5 real Spoonacular recipes, all split into 5-11
+                               steps correctly via its existing marker/blank-line/newline fallback chain
 
 api/
   _lib/translate.ts         — translateToVietnamese/translateToEnglish: shared OpenAI batch-
@@ -619,7 +649,10 @@ api/
                                (_lib/recipeUsage.ts) up front, regardless of catalog/AI mode -- the
                                non-AI path below calls OpenAI too (the tool-calling loop), so it was
                                never actually free of AI cost to begin with, on top of Spoonacular's
-                               own quota. `useAi: true` takes a completely
+                               own quota. `mealTime` (Breakfast/Lunch/Dinner, from Home's Suggest-a-dish
+                               form) is appended to the catalog-mode userPrompt as a plain reasoning
+                               hint, not a search_recipes filter arg -- see src/lib/cuisines.ts's
+                               MEAL_TIMES entry above for why. `useAi: true` takes a completely
                                different, much simpler path: one _lib/aiRecipe.ts generateAiRecipe
                                call (which also returns its own `reasoning`), persisted via
                                saveAiRecipe, returned as {recipeId, reasoning, title, source: 'ai'}

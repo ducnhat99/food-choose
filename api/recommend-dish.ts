@@ -17,6 +17,8 @@ interface RecommendRequest {
   timeAvailable?: number
   cuisine?: string
   category?: string
+  /** 'Breakfast' | 'Lunch' | 'Dinner' -- a plain hint, not a search_recipes filter param (neither provider has a real lunch/dinner category, so this is left for the model's own judgment rather than force-mapped onto one). */
+  mealTime?: string
   dietaryRestrictions?: string[]
   dislikedIngredients?: string[]
   language?: 'en' | 'vi'
@@ -226,6 +228,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     request.timeAvailable ? `Time available: ${request.timeAvailable} minutes` : null,
     request.cuisine ? `Preferred cuisine: ${request.cuisine}` : null,
     request.category ? `Category: ${request.category}` : null,
+    request.mealTime
+      ? `Meal time: ${request.mealTime} -- use your own judgment for what's appropriate (e.g. a ` +
+        `lighter/quicker dish for lunch, a heartier one for dinner, egg/pancake/porridge-style for ` +
+        `breakfast) since neither recipe provider has a real "lunch"/"dinner" filter to search by directly.`
+      : null,
     request.dietaryRestrictions?.length
       ? `Dietary restrictions (hard requirement, from the user's saved profile): ${request.dietaryRestrictions.join(', ')}`
       : null,

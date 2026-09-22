@@ -34,6 +34,8 @@ export interface RecommendDishRequest {
   timeAvailable?: number
   cuisine?: string
   category?: string
+  /** 'Breakfast' | 'Lunch' | 'Dinner' -- a plain hint, not a provider filter param (neither Spoonacular nor TheMealDB has a real lunch/dinner category). */
+  mealTime?: string
   dietaryRestrictions?: string[]
   dislikedIngredients?: string[]
   language?: Language

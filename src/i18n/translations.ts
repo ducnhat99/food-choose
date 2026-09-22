@@ -51,6 +51,7 @@ export const translations = {
   },
   'home.cuisineLabel': { en: 'Cuisine (optional)', vi: 'Ẩm thực (tùy chọn)' },
   'home.categoryLabel': { en: 'Category (optional)', vi: 'Danh mục (tùy chọn)' },
+  'home.mealTimeLabel': { en: 'Meal time (optional)', vi: 'Bữa ăn (tùy chọn)' },
   'home.submitting': { en: 'Thinking...', vi: 'Đang suy nghĩ...' },
   'home.submit': { en: 'Suggest a dish', vi: 'Gợi ý món ăn' },
   'home.viewRecipe': { en: 'View recipe', vi: 'Xem công thức' },

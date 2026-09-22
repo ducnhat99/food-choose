@@ -11,6 +11,8 @@ export interface AiRecipeInput {
   timeAvailable?: number
   cuisine?: string
   category?: string
+  /** 'Breakfast' | 'Lunch' | 'Dinner' -- a plain hint for the model's own judgment, not a fixed enum it must match exactly. */
+  mealTime?: string
   query?: string
   dietaryRestrictions?: string[]
   dislikedIngredients?: string[]
@@ -44,6 +46,7 @@ function buildUserPrompt(input: AiRecipeInput): string {
     input.timeAvailable ? `Time available: ${input.timeAvailable} minutes` : null,
     input.cuisine ? `Preferred cuisine: ${input.cuisine}` : null,
     input.category ? `Category: ${input.category}` : null,
+    input.mealTime ? `Meal time: ${input.mealTime}` : null,
     input.dietaryRestrictions?.length
       ? `Dietary restrictions (hard requirement): ${input.dietaryRestrictions.join(', ')}`
       : null,
@@ -64,7 +67,7 @@ const SYSTEM_PROMPT =
   'You are a creative chef inventing original recipes from scratch (not looking up existing ones). ' +
   'Invent a realistic, genuinely cookable dish using ordinary techniques and ingredients a home ' +
   'cook could find -- not an impossible, joke, or nonsensical combination. Respect any given ' +
-  'constraints (ingredients on hand, mood, time, cuisine, category); dietary restrictions and ' +
+  'constraints (ingredients on hand, mood, time, cuisine, category, meal time); dietary restrictions and ' +
   'ingredients-to-avoid marked as hard requirements must never be violated, even if that means ' +
   'picking a less obvious dish. Write ingredient measures using standard English cooking units ' +
   '(cups, tablespoons, teaspoons, grams, etc.). Write instructions as a numbered list, one step ' +

@@ -98,6 +98,15 @@ const SPOONACULAR_ONLY_CATEGORIES = ['Beverage'] as const
 
 export const CATEGORIES = [...MEALDB_CATEGORIES, ...SPOONACULAR_ONLY_CATEGORIES] as const
 
+// A separate, simpler axis from CATEGORIES above -- "what time of day is
+// this for" rather than "what type of dish is this". Neither provider has
+// a real "lunch"/"dinner" filter value (Spoonacular's `type` enum has
+// "breakfast" but nothing for lunch/dinner; TheMealDB's categories are the
+// same list as CATEGORIES, Breakfast only) -- so unlike CATEGORIES, this is
+// sent as a plain hint in the AI/tool-calling prompt (api/recommend-dish.ts)
+// rather than mapped onto a provider filter param.
+export const MEAL_TIMES = ['Breakfast', 'Lunch', 'Dinner'] as const
+
 // These values are TheMealDB API parameters and must stay in English when
 // submitted -- these maps only translate the label shown in a <select>.
 export const CUISINE_LABELS_VI: Record<(typeof CUISINES)[number], string> = {
@@ -165,6 +174,12 @@ export const CATEGORY_LABELS_VI: Record<(typeof CATEGORIES)[number], string> = {
   Vegan: 'Thuần chay',
   Vegetarian: 'Ăn chay',
   Beverage: 'Đồ uống',
+}
+
+export const MEAL_TIME_LABELS_VI: Record<(typeof MEAL_TIMES)[number], string> = {
+  Breakfast: 'Bữa sáng',
+  Lunch: 'Bữa trưa',
+  Dinner: 'Bữa tối',
 }
 
 /**

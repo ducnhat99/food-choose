@@ -141,10 +141,19 @@ export function RecipeDetail() {
 
       <div>
         <h2 className="text-lg font-semibold text-neutral-900">{t('recipe.instructions')}</h2>
-        <ol className="mt-3 list-inside list-decimal space-y-3 text-neutral-700">
+        <ol className="mt-3 list-none space-y-3 text-neutral-700">
           {steps.map((step, i) => (
-            <li key={i} className="whitespace-pre-line leading-relaxed">
-              {step}
+            <li
+              key={i}
+              className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm"
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-teal-600 text-xs font-semibold text-white"
+              >
+                {i + 1}
+              </span>
+              <p className="whitespace-pre-line leading-relaxed">{step}</p>
             </li>
           ))}
         </ol>
