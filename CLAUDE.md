@@ -669,12 +669,16 @@ api/
                                (or no) cuisine reliably converge on the same "obvious" dish
                                (confirmed live: 6 independent calls for cuisine "Vietnamese" with no
                                avoidTitles produced "lemongrass chicken" in 5 of 6; after the fix,
-                               6 calls produced 6 distinct dishes). Only applied in random.ts, per
-                               explicit request -- search.ts's generateAiRecipes already gets
-                               variety within one call for free (all N dishes generated together,
-                               see below) and recommend-dish.ts is grounded by the user's own
-                               ingredients/mood/constraints rather than a bare cuisine, so it's far
-                               less prone to this kind of clustering
+                               6 calls produced 6 distinct dishes). search.ts's generateAiRecipes
+                               already gets variety within one call for free (all N dishes generated
+                               together, see below), so doesn't need this separately.
+                               recommend-dish.ts's AI mode ALSO needs this same fix -- the original
+                               assumption that being "grounded by the user's own ingredients/mood"
+                               made it immune to clustering doesn't hold once those optional fields
+                               are left blank: confirmed live, a request with just cuisine="Thai" +
+                               category="pork" + mealTime="Dinner" (no ingredients/mood) returned the
+                               exact same dish 3 times in a row for a real user. See its own entry
+                               below for the fix
   recommend-dish.ts         — the AI recommendation feature. Checks/records the daily recipe limit
                                (_lib/recipeUsage.ts) up front, regardless of catalog/AI mode -- the
                                non-AI path below calls OpenAI too (the tool-calling loop), so it was
@@ -685,8 +689,15 @@ api/
                                MEAL_TIMES entry above for why. `useAi: true` takes a completely
                                different, much simpler path: one _lib/aiRecipe.ts generateAiRecipe
                                call (which also returns its own `reasoning`), persisted via
-                               saveAiRecipe, returned as {recipeId, reasoning, title, source: 'ai'}
-                               -- skips the tool-calling loop below entirely, since grounding a pick
+                               saveAiRecipe, returned as {recipeId, reasoning, title, source: 'ai'}.
+                               Before generating, fetches getRecentAiRecipeTitles (same helper/limit
+                               as random.ts above, filtered to `request.cuisine`) and passes it as
+                               `avoidTitles` -- see random.ts's entry above for why this is needed at
+                               all here too, confirmed live with the exact filter combination that
+                               triggered a real report (cuisine/category/mealTime set, no ingredients
+                               or mood): before the fix, 3/3 identical; after, 4 distinct dishes
+                               across 4 attempts with the same filters.
+                               Skips the tool-calling loop below entirely, since grounding a pick
                                in a real search result (the loop's whole purpose) is the opposite of
                                what AI mode is for. Everything from here down describes the
                                non-AI-mode path: calls OpenAI's Chat Completions API

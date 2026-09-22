@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { generateAiRecipe } from './_lib/aiRecipe.js'
-import { saveAiRecipe } from './_lib/aiRecipeStore.js'
+import { getRecentAiRecipeTitles, saveAiRecipe } from './_lib/aiRecipeStore.js'
 import { resolveCaller } from './_lib/auth.js'
 import { mealdbSearch, type RecipeSummary } from './_lib/mealdb.js'
 import { recordAndCheckRecipeUsage } from './_lib/recipeUsage.js'
@@ -10,6 +10,7 @@ import { translateToVietnamese } from './_lib/translate.js'
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_MODEL = 'gpt-4o-mini'
 const MAX_TOOL_ROUNDS = 8
+const RECENT_TITLES_TO_AVOID = 15
 
 interface RecommendRequest {
   ingredients?: string[]
@@ -201,7 +202,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // below (search_recipes before recommend_dish) is to avoid hallucinating
     // a dish that doesn't exist in either catalog, which is irrelevant here.
     try {
-      const generated = await generateAiRecipe(request)
+      // Each generation is a stateless call with no memory of any other --
+      // reported live that a narrow-but-not-unique request (a cuisine +
+      // category + meal time, no distinguishing ingredients/mood text)
+      // reliably converged on the exact same dish across 3 separate
+      // Suggest-a-dish attempts, the same clustering behavior random.ts
+      // already had to fix this way -- the assumption that being "grounded
+      // by the user's own ingredients/mood" made this route immune doesn't
+      // hold once those optional fields are left blank. Filtered to the
+      // same cuisine when one is set, so the avoid-list stays relevant.
+      const avoidTitles = await getRecentAiRecipeTitles(RECENT_TITLES_TO_AVOID, request.cuisine)
+      const generated = await generateAiRecipe({ ...request, avoidTitles })
       const id = await saveAiRecipe(generated)
 
       let title = generated.title

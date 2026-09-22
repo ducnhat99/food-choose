@@ -64,12 +64,19 @@ const SPOONACULAR_ONLY_CUISINES = [
 
 export const CUISINES = [...MEALDB_CUISINES, ...SPOONACULAR_ONLY_CUISINES] as const
 
-// TheMealDB's real, fixed category list (list.php?c=list). Doubles as the
-// closest available filter axis to a "meal type" or "diet" (Vegan/
-// Vegetarian exist here as ordinary categories, not a separate diet field).
+// TheMealDB's real, fixed category list (list.php?c=list), minus
+// 'Breakfast' -- that's covered by MEAL_TIMES below instead (offering both
+// duplicated the same "Bữa sáng" option in two separate dropdowns).
+// mapCategoryToSpoonacular (api/recommend-dish.ts) still handles a
+// 'breakfast' category value correctly regardless -- it's a plain string
+// param the tool-calling model can pass on its own initiative (e.g.
+// prompted by a Meal time: Breakfast hint), not constrained to this list,
+// so removing it here doesn't remove the model's ability to search by it.
+// Doubles as the closest available filter axis to a "type" or "diet"
+// otherwise (Vegan/Vegetarian exist here as ordinary categories, not a
+// separate diet field).
 const MEALDB_CATEGORIES = [
   'Beef',
-  'Breakfast',
   'Chicken',
   'Dessert',
   'Goat',
@@ -101,10 +108,13 @@ export const CATEGORIES = [...MEALDB_CATEGORIES, ...SPOONACULAR_ONLY_CATEGORIES]
 // A separate, simpler axis from CATEGORIES above -- "what time of day is
 // this for" rather than "what type of dish is this". Neither provider has
 // a real "lunch"/"dinner" filter value (Spoonacular's `type` enum has
-// "breakfast" but nothing for lunch/dinner; TheMealDB's categories are the
-// same list as CATEGORIES, Breakfast only) -- so unlike CATEGORIES, this is
-// sent as a plain hint in the AI/tool-calling prompt (api/recommend-dish.ts)
-// rather than mapped onto a provider filter param.
+// "breakfast" but nothing for lunch/dinner; TheMealDB's own category list
+// only has "Breakfast", not lunch/dinner either) -- so unlike CATEGORIES,
+// this is sent as a plain hint in the AI/tool-calling prompt
+// (api/recommend-dish.ts) rather than mapped onto a provider filter param.
+// 'Breakfast' is deliberately left out of CATEGORIES above (even though
+// it's a real TheMealDB category, see mapCategoryToSpoonacular) so it isn't
+// offered twice, as two differently-behaving dropdowns, on Home's form.
 export const MEAL_TIMES = ['Breakfast', 'Lunch', 'Dinner'] as const
 
 // These values are TheMealDB API parameters and must stay in English when
@@ -160,7 +170,6 @@ export const CUISINE_LABELS_VI: Record<(typeof CUISINES)[number], string> = {
 
 export const CATEGORY_LABELS_VI: Record<(typeof CATEGORIES)[number], string> = {
   Beef: 'Thịt bò',
-  Breakfast: 'Bữa sáng',
   Chicken: 'Thịt gà',
   Dessert: 'Tráng miệng',
   Goat: 'Thịt dê',
