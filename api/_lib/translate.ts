@@ -64,6 +64,13 @@ function translate(texts: string[], targetLanguage: 'English' | 'Vietnamese'): P
       'set of recipe instructions) -- translate that entire string as a single unit and ' +
       'return it as one single string in the same position, never split it into multiple ' +
       'array entries no matter how many lines or steps it contains. ' +
+      'Preserve the exact line-break structure of the input in your output: if a step or ' +
+      'sentence starts on its own new line in the input (e.g. numbered steps like "1. ...\\n2. ' +
+      '..." or "Step 1: ...\\nStep 2: ..."), the translated version of each step must ALSO start ' +
+      'on its own new line, in the same position, using the same "\\n" separators -- never merge ' +
+      'multiple lines/steps into one continuous run-on paragraph, even if that reads more ' +
+      'naturally as prose. The line-break positions in your output must match the line-break ' +
+      'positions in the input one-for-one. ' +
       'Respond with a JSON object {"translations": string[]} whose length always exactly ' +
       'equals the number of items in the input "texts" array, one output per input, in the ' +
       'same order -- never more, never fewer, regardless of how long or short any individual ' +

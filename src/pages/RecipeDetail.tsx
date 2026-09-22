@@ -46,10 +46,32 @@ function parseInstructionSteps(text: string): string[] {
     .filter(Boolean)
   if (byBlankLine.length > 1) return byBlankLine
 
-  return normalized
+  const byNewline = normalized
     .split('\n')
     .map((s) => s.replace(stepMarker, '').trim())
     .filter(Boolean)
+  if (byNewline.length > 1) return byNewline
+
+  // Last-resort fallback for when the translation pipeline (translate.ts)
+  // collapses an originally multi-line numbered list into one continuous
+  // run-on paragraph with no line breaks at all, just inline "... phút. 4.
+  // Trong khi ..." markers -- confirmed live from a real report, where
+  // every step rendered as a single undifferentiated block despite the
+  // English source having real newlines. translate.ts's prompt now asks
+  // the model to preserve line breaks, but that's a prompt instruction,
+  // not a guarantee, so this stays as a safety net regardless. Splits on a
+  // digit marker that immediately follows sentence-ending punctuation plus
+  // a space (". 4. ", not just "4.") -- specific enough to not misfire on
+  // an ordinary mid-sentence quantity like "add 2 cups of flour", which
+  // never directly follows a ". ".
+  const inlineMarkerLookahead = /(?<=[.!?]\s)(?=\d{1,2}[.)]\s)/g
+  const byInlineMarker = normalized
+    .split(inlineMarkerLookahead)
+    .map((s) => s.replace(stepMarker, '').trim())
+    .filter(Boolean)
+  if (byInlineMarker.length > 1) return byInlineMarker
+
+  return byNewline
 }
 
 export function RecipeDetail() {

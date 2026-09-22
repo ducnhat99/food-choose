@@ -339,6 +339,20 @@ api/
                                otherwise silently shift every entry after the discrepancy onto the
                                wrong field. On a mismatch, returns the original `texts` unchanged
                                (untranslated) rather than risk serving misaligned, meaningless text.
+                               The shared prompt also explicitly requires preserving the input's
+                               line-break positions one-for-one in the output -- without this,
+                               translating a multi-line numbered instructions list (e.g. "1. ...\n2.
+                               ...") reliably collapsed it into one continuous run-on paragraph with
+                               inline "... phút. 4. Trong khi ..." markers and no real newlines at
+                               all, confirmed live from a real report where every step then rendered
+                               as a single undifferentiated block in RecipeDetail.tsx (parsed nothing
+                               to split on). Re-verified live after the prompt fix: a 4-line English
+                               input translated back to exactly 4 lines. RecipeDetail.tsx's
+                               parseInstructionSteps also gained a last-resort inline-marker fallback
+                               split (splits on a digit marker immediately following ". "/"! "/"? ")
+                               as a safety net for whenever the prompt instruction doesn't hold --
+                               this is a prompt instruction, not a guarantee, so both fixes stay in
+                               place together.
                                translateIngredientPhrases shares the same underlying call/validation
                                logic (callTranslationModel) but with a different, specialized system
                                prompt used for ALL ingredient name/measure text the glossary doesn't
